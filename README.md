@@ -29,7 +29,7 @@ Screenshots:<br>
 
 </table>
 
-## To run this app
+## To run this app,
 
 <ol>
 <li>Obtain api key from <a href ="https://www.themoviedb.org/">TMDB</a>.</li>
