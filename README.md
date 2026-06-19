@@ -1,9 +1,8 @@
-# Movies App made in Flutter with.  api data from TMDB
+# Movies App made in Flutter with.  api data from TMDB,
 sss
 This is an app that, displays you details of movies that you can search for or browse.<br>
 
 ## Features
-h
 <ul>
 <li>Fetch api data from TMDB asynchronously.</li>
 <li>Dynamic Theming using Provider</li>
