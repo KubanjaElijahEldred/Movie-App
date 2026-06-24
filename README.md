@@ -1,5 +1,5 @@
 # Movies App made in Flutter with.  api data from TMDB,
-sss
+sss,
 This is an app that, displays you details of movies that you can search for or browse.<br>
 
 ## Features
@@ -28,7 +28,7 @@ Screenshots:<br>
 
 </table>
 
-## To run this app,
+## To run this app
 
 <ol>
 <li>Obtain api key from <a href ="https://www.themoviedb.org/">TMDB</a>.</li>
