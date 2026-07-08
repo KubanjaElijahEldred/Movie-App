@@ -29,7 +29,7 @@ Screenshots:<br>
 
 </table>
 
-## To run this app,
+## To run this app
 
 
 <ol>
