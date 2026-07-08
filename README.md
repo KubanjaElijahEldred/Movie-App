@@ -3,7 +3,7 @@
 
 This is an app that, displays you details of movies that you can search for or browse.<br>
 
-## Features
+## Feature
 <ul>
 <li>Fetch api data from TMDB asynchronously.</li>
 <li>Dynamic Theming using Provider</li>
