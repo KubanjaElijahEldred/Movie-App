@@ -51,6 +51,7 @@ jobs:
         with:
           name: playmo-web
           path: .vercel-static
+          include-hidden-files: true
           retention-days: 7
 
       - name: Deploy to Vercel

@@ -438,7 +438,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             onTap: () => _showSnackBar('Profile settings...', Icons.account_circle),
             child: CircleAvatar(
               radius: 20,
-              backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=12'),
+              backgroundImage: NetworkImage(
+                  TMDB_BASE_IMAGE_URL + 'w185/aIecrmmYpqnyCWQArAueqD60qok.jpg'),
             ),
           ),
         ],
