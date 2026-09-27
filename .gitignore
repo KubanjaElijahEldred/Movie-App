@@ -71,3 +71,5 @@
 
 # Local Vercel deploy staging output
 .vercel-static/
+.vercel
+.env*
