@@ -38,3 +38,28 @@ Screenshots:<br>
 <li>Run the app with <b>flutter run --release</b></li>
 
 </ol>
+
+## Deploying to Vercel
+
+Vercel has no Flutter runtime, so the app is compiled by the Flutter SDK in CI
+and the finished static bundle is uploaded to Vercel.
+
+Every push to `main` runs `.github/workflows/deploy.yml`, which builds the web
+app and deploys it to https://playmo-movies.vercel.app.
+
+To deploy from your machine instead, run:
+
+```bash
+./scripts/deploy_vercel.sh
+```
+
+It performs the identical build and deploy steps. The host/routing rules live in
+`vercel.json`, which CI copies into the static bundle before upload.
+
+### Required repository secrets
+
+| Secret | Value |
+| --- | --- |
+| `VERCEL_TOKEN` | Vercel access token |
+| `VERCEL_ORG_ID` | Vercel team id (`team_fZRLHANF66J2q79gKeisPDlt`) |
+| `VERCEL_PROJECT_ID` | Vercel project id (`prj_4TFGQN3cz9AJQyybov9yns4MIYbk`) |

@@ -1,0 +1,57 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two production deploys at the same time.
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build Flutter web and deploy to Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build Flutter web (release)
+        run: flutter build web --release --base-href /
+
+      - name: Stage static output
+        run: |
+          rm -rf .vercel-static
+          mkdir -p .vercel-static
+          cp -R build/web/. .vercel-static/
+          cp vercel.json .vercel-static/vercel.json
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playmo-web
+          path: .vercel-static
+          retention-days: 7
+
+      - name: Deploy to Vercel
+        run: npx --yes vercel@latest deploy --prod --yes .vercel-static
