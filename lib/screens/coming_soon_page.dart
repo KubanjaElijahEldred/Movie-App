@@ -8,9 +8,9 @@ import 'package:movies/screens/movie_detail.dart';
 
 class ComingSoonPage extends StatefulWidget {
   final List<Genres> genres;
-  
+
   ComingSoonPage({required this.genres});
-  
+
   @override
   _ComingSoonPageState createState() => _ComingSoonPageState();
 }
@@ -39,52 +39,69 @@ class _ComingSoonPageState extends State<ComingSoonPage> {
     }
   }
 
+  /// Scales the poster grid with the available width so the page stays usable
+  /// on a phone instead of squeezing five columns into a narrow viewport.
+  int _columnsFor(double width) {
+    if (width < 480) return 2;
+    if (width < 720) return 3;
+    if (width < 1000) return 4;
+    return 5;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Coming Soon',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
+    // This screen used to return a bare Container, which left it with no
+    // Scaffold and therefore no way back except the browser's back button.
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0F1F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF151827),
+        foregroundColor: Colors.white,
+        title: const Text('Coming Soon', style: TextStyle(fontSize: 18)),
+      ),
+      body: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Upcoming movies and releases',
+              style: TextStyle(color: Colors.white60, fontSize: 16),
             ),
-          ),
-          SizedBox(height: 10),
-          Text(
-            'Upcoming movies and releases',
-            style: TextStyle(color: Colors.white60, fontSize: 16),
-          ),
-          SizedBox(height: 40),
-          Expanded(
-            child: isLoading
-                ? Center(child: CircularProgressIndicator(color: Colors.amber))
-                : upcomingMovies == null || upcomingMovies!.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No upcoming movies found',
-                          style: TextStyle(color: Colors.white60),
+            SizedBox(height: 24),
+            Expanded(
+              child: isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(color: Colors.amber))
+                  : upcomingMovies == null || upcomingMovies!.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No upcoming movies found',
+                            style: TextStyle(color: Colors.white60),
+                          ),
+                        )
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            return GridView.builder(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount:
+                                    _columnsFor(constraints.maxWidth),
+                                childAspectRatio: 0.6,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                              ),
+                              itemCount: upcomingMovies!.length,
+                              itemBuilder: (context, index) {
+                                final movie = upcomingMovies![index];
+                                return _buildMovieCard(movie);
+                              },
+                            );
+                          },
                         ),
-                      )
-                    : GridView.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          childAspectRatio: 0.6,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
-                        itemCount: upcomingMovies!.length,
-                        itemBuilder: (context, index) {
-                          final movie = upcomingMovies![index];
-                          return _buildMovieCard(movie);
-                        },
-                      ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -112,7 +129,8 @@ class _ComingSoonPageState extends State<ComingSoonPage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(
-                  image: NetworkImage(TMDB_BASE_IMAGE_URL + 'w500/' + (movie.posterPath ?? '')),
+                  image: NetworkImage(
+                      TMDB_BASE_IMAGE_URL + 'w500/' + (movie.posterPath ?? '')),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -150,7 +168,8 @@ class _ComingSoonPageState extends State<ComingSoonPage> {
           SizedBox(height: 8),
           Text(
             movie.title ?? '',
-            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

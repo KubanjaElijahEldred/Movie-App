@@ -13,67 +13,71 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Settings',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
+    // Previously a bare Container with no Scaffold, so this screen had no
+    // in-app way back once it was pushed from the sidebar.
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0F1F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF151827),
+        foregroundColor: Colors.white,
+        title: const Text('Settings', style: TextStyle(fontSize: 18)),
+      ),
+      body: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Manage your preferences',
+              style: TextStyle(color: Colors.white60, fontSize: 16),
             ),
-          ),
-          SizedBox(height: 10),
-          Text(
-            'Manage your preferences',
-            style: TextStyle(color: Colors.white60, fontSize: 16),
-          ),
-          SizedBox(height: 40),
-          Expanded(
-            child: ListView(
-              children: [
-                _buildSection('Appearance'),
-                _buildSwitchTile(
-                  'Dark Mode',
-                  'Use dark theme',
-                  darkMode,
-                  (value) => setState(() => darkMode = value),
-                ),
-                SizedBox(height: 30),
-                _buildSection('Playback'),
-                _buildSwitchTile(
-                  'Auto-Play Trailers',
-                  'Automatically play trailers when viewing details',
-                  autoPlay,
-                  (value) => setState(() => autoPlay = value),
-                ),
-                _buildQualityTile(),
-                SizedBox(height: 30),
-                _buildSection('Notifications'),
-                _buildSwitchTile(
-                  'Push Notifications',
-                  'Receive updates about new releases',
-                  notifications,
-                  (value) => setState(() => notifications = value),
-                ),
-                SizedBox(height: 30),
-                _buildSection('Account'),
-                _buildActionTile('Clear Cache', Icons.delete_outline, () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Cache cleared successfully')),
-                  );
-                }),
-                _buildActionTile('Privacy Policy', Icons.privacy_tip_outlined, () {}),
-                _buildActionTile('Terms of Service', Icons.description_outlined, () {}),
-                SizedBox(height: 20),
-                _buildActionTile('Sign Out', Icons.logout, () {}, isDestructive: true),
-              ],
+            SizedBox(height: 24),
+            Expanded(
+              child: ListView(
+                children: [
+                  _buildSection('Appearance'),
+                  _buildSwitchTile(
+                    'Dark Mode',
+                    'Use dark theme',
+                    darkMode,
+                    (value) => setState(() => darkMode = value),
+                  ),
+                  SizedBox(height: 30),
+                  _buildSection('Playback'),
+                  _buildSwitchTile(
+                    'Auto-Play Trailers',
+                    'Automatically play trailers when viewing details',
+                    autoPlay,
+                    (value) => setState(() => autoPlay = value),
+                  ),
+                  _buildQualityTile(),
+                  SizedBox(height: 30),
+                  _buildSection('Notifications'),
+                  _buildSwitchTile(
+                    'Push Notifications',
+                    'Receive updates about new releases',
+                    notifications,
+                    (value) => setState(() => notifications = value),
+                  ),
+                  SizedBox(height: 30),
+                  _buildSection('Account'),
+                  _buildActionTile('Clear Cache', Icons.delete_outline, () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Cache cleared successfully')),
+                    );
+                  }),
+                  _buildActionTile(
+                      'Privacy Policy', Icons.privacy_tip_outlined, () {}),
+                  _buildActionTile(
+                      'Terms of Service', Icons.description_outlined, () {}),
+                  SizedBox(height: 20),
+                  _buildActionTile('Sign Out', Icons.logout, () {},
+                      isDestructive: true),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -92,7 +96,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildSwitchTile(String title, String subtitle, bool value, Function(bool) onChanged) {
+  Widget _buildSwitchTile(
+      String title, String subtitle, bool value, Function(bool) onChanged) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
@@ -108,7 +113,10 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500),
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -144,7 +152,10 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Text(
                   'Video Quality',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500),
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -172,7 +183,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildActionTile(String title, IconData icon, VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _buildActionTile(String title, IconData icon, VoidCallback onTap,
+      {bool isDestructive = false}) {
     return InkWell(
       onTap: onTap,
       child: Container(
