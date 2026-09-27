@@ -106,6 +106,18 @@ class _ComingSoonPageState extends State<ComingSoonPage> {
     );
   }
 
+  /// A cover-fitted TMDB image decoration, or null when the title has no image.
+  ///
+  /// Returning null keeps a missing poster_path from becoming a 404, which
+  /// inside a BoxDecoration is reported as an uncaught error, because
+  /// DecorationImage has no errorBuilder.
+  DecorationImage? _coverImage(String? path, {String size = 'w500'}) {
+    final String? url = tmdbImageUrl(path, size: size);
+    return url == null
+        ? null
+        : DecorationImage(image: NetworkImage(url), fit: BoxFit.cover);
+  }
+
   Widget _buildMovieCard(Movie movie) {
     return GestureDetector(
       onTap: () {
@@ -128,11 +140,7 @@ class _ComingSoonPageState extends State<ComingSoonPage> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: NetworkImage(
-                      TMDB_BASE_IMAGE_URL + 'w500/' + (movie.posterPath ?? '')),
-                  fit: BoxFit.cover,
-                ),
+                image: _coverImage(movie.posterPath),
               ),
               child: Container(
                 decoration: BoxDecoration(

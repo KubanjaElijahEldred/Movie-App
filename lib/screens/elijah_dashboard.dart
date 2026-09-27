@@ -200,6 +200,18 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
+  /// A cover-fitted TMDB image decoration, or null when the title has no image.
+  ///
+  /// Returning null keeps a missing poster_path from becoming a 404, which
+  /// inside a BoxDecoration is reported as an uncaught error, because
+  /// DecorationImage has no errorBuilder.
+  DecorationImage? _coverImage(String? path, {String size = 'w500'}) {
+    final String? url = tmdbImageUrl(path, size: size);
+    return url == null
+        ? null
+        : DecorationImage(image: NetworkImage(url), fit: BoxFit.cover);
+  }
+
   // Search movies
   Future<void> _searchMovies(String query) async {
     if (query.trim().isEmpty) {
@@ -1026,12 +1038,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       height: 350,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: NetworkImage(TMDB_BASE_IMAGE_URL +
-              'original/' +
-              (movie.backdropPath ?? movie.posterPath ?? '')),
-          fit: BoxFit.cover,
-        ),
+        image: _coverImage(movie.backdropPath ?? movie.posterPath,
+            size: 'original'),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -1147,11 +1155,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             height: 200,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: NetworkImage(
-                    TMDB_BASE_IMAGE_URL + 'w500/' + (movie.posterPath ?? '')),
-                fit: BoxFit.cover,
-              ),
+              image: _coverImage(movie.posterPath),
             ),
           ),
           // Rating badge
@@ -1290,12 +1294,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             height: 180,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: NetworkImage(TMDB_BASE_IMAGE_URL +
-                    'w500/' +
-                    (movie.backdropPath ?? movie.posterPath ?? '')),
-                fit: BoxFit.cover,
-              ),
+              image: _coverImage(movie.backdropPath ?? movie.posterPath),
             ),
           ),
           // Dark gradient overlay
@@ -1443,12 +1442,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(
-                      image: NetworkImage(TMDB_BASE_IMAGE_URL +
-                          'w500/' +
-                          (movie.posterPath ?? '')),
-                      fit: BoxFit.cover,
-                    ),
+                    image: _coverImage(movie.posterPath),
                   ),
                 ),
                 Positioned(
@@ -1651,11 +1645,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             height: 100,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              image: DecorationImage(
-                image: NetworkImage(
-                    TMDB_BASE_IMAGE_URL + 'w500/' + (movie.posterPath ?? '')),
-                fit: BoxFit.cover,
-              ),
+              image: _coverImage(movie.posterPath),
             ),
           ),
           SizedBox(width: 12),
@@ -1748,12 +1738,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         margin: EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          image: DecorationImage(
-            image: NetworkImage(TMDB_BASE_IMAGE_URL +
-                'w500/' +
-                (movie.backdropPath ?? movie.posterPath ?? '')),
-            fit: BoxFit.cover,
-          ),
+          image: _coverImage(movie.backdropPath ?? movie.posterPath),
         ),
         child: Container(
           decoration: BoxDecoration(
