@@ -73,6 +73,3 @@
 .vercel-static/
 .vercel
 .env*
-
-# Vercel CLI scratch
-.vercel-inspect/
