@@ -68,17 +68,25 @@ class Movie {
     voteCount = json['vote_count'];
     id = json['id'];
     video = json['video'];
-    voteAverage = json['vote_average'].toString();
-    title = json['title'];
+    voteAverage = json['vote_average']?.toString();
+    // TV results carry the title in "name" instead, which is how the Series
+    // row on the home page reuses this model.
+    title = json['title'] ?? json['name'];
     popularity = json['popularity'];
     posterPath = json['poster_path'];
     originalLanguage = json['original_language'];
     originalTitle = json['original_title'];
-    genreIds = json['genre_ids'].cast<int>();
+    // genre_ids is absent from TV results, so an unconditional cast on a null
+    // value would throw while parsing the Series row.
+    final dynamic rawGenreIds = json['genre_ids'];
+    genreIds = rawGenreIds is List
+        ? rawGenreIds.whereType<dynamic>().map((dynamic g) => g as int).toList()
+        : <int>[];
     backdropPath = json['backdrop_path'];
     adult = json['adult'];
     overview = json['overview'];
-    releaseDate = json['release_date'];
+    // Series report their air date under a different key.
+    releaseDate = json['release_date'] ?? json['first_air_date'];
   }
 
   Map<String, dynamic> toJson() {

@@ -1,11 +1,11 @@
 {
-    "name": "movies",
-    "short_name": "movies",
+    "name": "Play It - Movie Streaming",
+    "short_name": "Play It",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Play It - stream movies and series.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

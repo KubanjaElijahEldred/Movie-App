@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider<ThemeState>(
       create: (_) => ThemeState(),
       child: MaterialApp(
-        title: 'PlayMo - Movie Streaming',
+        title: 'Play It - Movie Streaming',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           brightness: Brightness.dark,

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:movies/api/endpoints.dart';
 import 'package:movies/constants/api_constants.dart';
+import 'package:movies/constants/app_theme.dart';
 import 'package:movies/modal_class/function.dart';
 import 'package:movies/modal_class/genres.dart';
 import 'package:movies/modal_class/movie.dart';
 import 'package:movies/modal_class/video.dart';
 import 'package:movies/screens/browse_page.dart';
 import 'package:movies/screens/coming_soon_page.dart';
+import 'package:movies/screens/downloaded_page.dart';
 import 'package:movies/screens/favorites_page.dart';
+import 'package:movies/screens/home_sections.dart';
 import 'package:movies/screens/login.dart';
 import 'package:movies/screens/movie_detail.dart';
 import 'package:movies/screens/settings_page.dart';
@@ -52,6 +55,30 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   bool showAllPopular = false;
   bool showAllRecommended = false;
 
+  /// Rows shown on the redesigned home page: a recent release row plus one row
+  /// per genre.
+  List<Movie> recentMovies = <Movie>[];
+  final Map<String, List<Movie>> genreRows = <String, List<Movie>>{};
+  bool isLoadingRows = true;
+
+  /// The genre rows on the home page, in display order.
+  ///
+  /// Series pulls from the TV endpoints because a genre list of films would
+  /// not be a series row.
+  static const List<_GenreRow> _homeRows = <_GenreRow>[
+    _GenreRow('Action', 28, Icons.local_fire_department_outlined),
+    _GenreRow('Adventure', 12, Icons.explore_outlined),
+    _GenreRow('Sci-Fi', 878, Icons.rocket_launch_outlined),
+    _GenreRow('Drama', 18, Icons.theater_comedy_outlined),
+    _GenreRow('Horror', 27, Icons.dark_mode_outlined),
+    _GenreRow('Thriller', 53, Icons.bolt_outlined),
+    _GenreRow('Series', 0, Icons.live_tv_outlined, isSeries: true),
+  ];
+
+  /// How many titles each row keeps. TMDB returns 20 per page, so every row
+  /// shows well over ten.
+  static const int _moviesPerRow = 14;
+
   /// The movies the user has actually bookmarked, resolved from every list the
   /// dashboard has loaded so the Bookmarked page shows real titles.
   List<Movie> get bookmarkedMovies {
@@ -78,6 +105,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   void initState() {
     super.initState();
     _loadData();
+    _loadHomeRows();
   }
 
   @override
@@ -129,7 +157,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         trendingMovies = trending;
         topRated = rated;
         continueWatching = trending.take(4).toList();
-        recentDownloads = popular.take(4).toList();
+        recentDownloads = popular.take(10).toList();
         bookmarked = rated.take(4).toList();
         this.popular = rated.take(3).toList();
         this.recommended = popular.take(3).toList();
@@ -167,7 +195,6 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       }
     });
   }
-
   // Toggle watchlist
   void _toggleWatchlist(Movie movie) {
     setState(() {
@@ -179,6 +206,15 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         _showSnackBar('Added to watchlist', Icons.add_circle);
       }
     });
+  }
+
+  /// Drops a title from the Downloaded page so its Remove button is a real
+  /// action rather than a placeholder.
+  void _removeDownload(Movie movie) {
+    setState(() {
+      recentDownloads?.removeWhere((Movie m) => m.id == movie.id);
+    });
+    _showSnackBar('Removed ${movie.title ?? 'title'}', Icons.delete_outline);
   }
 
   // Show snackbar feedback
@@ -236,6 +272,46 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     searchController.clear();
     if (searchResults == null) return;
     setState(() => searchResults = null);
+  }
+
+  /// Fetches a list, turning a failure into an empty list so one bad genre
+  /// request cannot empty every row on the home page.
+  Future<List<Movie>> _safeFetch(String url) async {
+    try {
+      return await fetchMovies(url);
+    } catch (_) {
+      return <Movie>[];
+    }
+  }
+
+  /// Loads the Recent movies row and every genre row in parallel, so the home
+  /// page paints its sections as one block instead of eight separate spinners.
+  Future<void> _loadHomeRows() async {
+    if (mounted) setState(() => isLoadingRows = true);
+
+    final List<List<Movie>> results = await Future.wait<List<Movie>>(
+      <Future<List<Movie>>>[
+        _safeFetch(Endpoints.nowPlayingMoviesUrl(1)),
+        for (final _GenreRow row in _homeRows)
+          _safeFetch(
+            row.isSeries
+                ? Endpoints.popularTVUrl(1)
+                : Endpoints.getMoviesForGenre(row.genreId, 1),
+          ),
+      ],
+    );
+    if (!mounted) return;
+
+    setState(() {
+      recentMovies = results.first.take(_moviesPerRow).toList();
+      genreRows.clear();
+      for (int i = 0; i < _homeRows.length; i++) {
+        final List<Movie> movies = results[i + 1];
+        if (movies.isEmpty) continue;
+        genreRows[_homeRows[i].label] = movies.take(_moviesPerRow).toList();
+      }
+      isLoadingRows = false;
+    });
   }
 
   // Filter by genre
@@ -392,8 +468,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     }
   }
 
-  /// Below this width the layout is too cramped for a permanent sidebar, so it
-  /// moves into a drawer.
+  /// Below this width the layout is too cramped for a permanent sidebar, so the
+  /// sidebar is replaced by a bottom navigation bar.
   static const double _drawerBreakpoint = 900;
 
   /// The right sidebar is a third column, so it needs real room to sit beside
@@ -404,14 +480,14 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final bool useDrawer = constraints.maxWidth < _drawerBreakpoint;
+        final bool isNarrow = constraints.maxWidth < _drawerBreakpoint;
         final bool showRightSidebar =
             constraints.maxWidth >= _rightSidebarBreakpoint;
 
         final Widget content = isLoading
             ? const Center(
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10D98D)),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppPalette.brand),
                 ),
               )
             : Row(
@@ -426,13 +502,12 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
 
         return Scaffold(
           key: _scaffoldKey,
-          backgroundColor: const Color(0xFF0D0F1F),
-          drawer: useDrawer ? _buildDrawer() : null,
+          backgroundColor: AppPalette.background,
           body: Row(
             children: <Widget>[
-              if (!useDrawer) _buildLeftSidebar(),
+              if (!isNarrow) _buildLeftSidebar(),
               Expanded(
-                child: useDrawer
+                child: isNarrow
                     ? Column(
                         children: <Widget>[
                           _buildMobileAppBar(),
@@ -443,36 +518,187 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
               ),
             ],
           ),
+          bottomNavigationBar: isNarrow ? _buildBottomNavBar() : null,
         );
       },
     );
   }
 
-  /// Top bar for narrow screens. Carries the drawer button, the wordmark and a
-  /// way into Settings, which the permanent sidebar would otherwise provide.
+  /// The bottom destinations on narrow screens. These mirror the permanent
+  /// sidebar so both layouts reach the same pages.
+  static const List<({String page, IconData icon, IconData activeIcon})>
+      _navDestinations = <({String page, IconData icon, IconData activeIcon})>[
+    (page: 'Home', icon: Icons.home_outlined, activeIcon: Icons.home),
+    (
+      page: 'Discovery',
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore
+    ),
+    (
+      page: 'Downloaded',
+      icon: Icons.download_outlined,
+      activeIcon: Icons.download_done
+    ),
+    (
+      page: 'Bookmarked',
+      icon: Icons.bookmark_border,
+      activeIcon: Icons.bookmark
+    ),
+  ];
+
+  /// The bottom navigation bar that replaces the sidebar on phones.
+  ///
+  /// "More" opens a sheet with the destinations that do not fit, so nothing
+  /// from the sidebar is unreachable without a drawer.
+  Widget _buildBottomNavBar() {
+    final int selected = _navDestinations.indexWhere(
+      (({String page, IconData icon, IconData activeIcon}) d) => d.page == currentPage,
+    );
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppPalette.surface,
+        border: Border(top: BorderSide(color: Color(0x1FFFFFFF))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 62,
+          child: Row(
+            children: <Widget>[
+              for (final ({String page, IconData icon, IconData activeIcon}) d
+                  in _navDestinations)
+                Expanded(
+                  child: _NavButton(
+                    label: d.page,
+                    icon: selected == _navDestinations.indexOf(d)
+                        ? d.activeIcon
+                        : d.icon,
+                    isActive: selected == _navDestinations.indexOf(d),
+                    onPressed: () => _navigateToPage(d.page),
+                  ),
+                ),
+              Expanded(
+                child: _NavButton(
+                  label: 'More',
+                  icon: Icons.more_horiz,
+                  isActive: _isMoreActive,
+                  onPressed: _openMoreSheet,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// True when the active page is one of the destinations behind the More
+  /// sheet, so the sheet's trigger shows as selected.
+  bool get _isMoreActive => <String>{
+        'Community',
+        'Recent',
+        'Top rated',
+        'Coming soon',
+        'Settings',
+        'Help',
+        'Logout',
+      }.contains(currentPage);
+
+  /// The destinations that do not fit in the bottom bar.
+  static const List<({String page, IconData icon})> _moreDestinations =
+      <({String page, IconData icon})>[
+    (page: 'Community', icon: Icons.people_outline),
+    (page: 'Recent', icon: Icons.access_time),
+    (page: 'Top rated', icon: Icons.star_border),
+    (page: 'Coming soon', icon: Icons.calendar_today_outlined),
+    (page: 'Settings', icon: Icons.settings_outlined),
+    (page: 'Help', icon: Icons.help_outline),
+    (page: 'Logout', icon: Icons.logout),
+  ];
+
+  /// Opens the sheet holding the remaining destinations.
+  Future<void> _openMoreSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+                  child: Text(
+                    'More',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                for (final ({String page, IconData icon}) d in _moreDestinations)
+                  ListTile(
+                    leading: Icon(
+                      d.icon,
+                      color: currentPage == d.page
+                          ? AppPalette.brand
+                          : AppPalette.textSecondary,
+                    ),
+                    title: Text(
+                      d.page,
+                      style: TextStyle(
+                        color: currentPage == d.page
+                            ? AppPalette.brand
+                            : Colors.white70,
+                        fontWeight: currentPage == d.page
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _navigateToPage(d.page);
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Top bar for narrow screens. Carries the wordmark and quick access to
+  /// search, which the permanent sidebar would otherwise provide.
   Widget _buildMobileAppBar() {
     return SafeArea(
       bottom: false,
       child: Container(
         height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        color: const Color(0xFF151827),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: AppPalette.surface,
         child: Row(
           children: <Widget>[
-            Builder(
-              builder: (BuildContext context) => IconButton(
-                tooltip: 'Menu',
-                icon: const Icon(Icons.menu, color: Colors.white),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Text(
-              'PlayMo',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            const _BrandMark(compact: true),
+            const SizedBox(width: 10),
+            Semantics(
+              label: 'Play It',
+              excludeSemantics: true,
+              child: const Text(
+                'Play It',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const Spacer(),
@@ -492,46 +718,25 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
-  /// The sidebar rendered inside a drawer on narrow screens. Reuses the same
-  /// items and active-state logic as the permanent sidebar so both stay in sync.
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: const Color(0xFF151827),
-      child: SafeArea(
-        child: _buildLeftSidebar(inDrawer: true),
-      ),
-    );
-  }
-
-  Widget _buildLeftSidebar({bool inDrawer = false}) {
+  /// The permanent sidebar shown on wide screens.
+  Widget _buildLeftSidebar() {
     return Container(
       width: 200,
-      color: const Color(0xFF151827),
+      color: AppPalette.surface,
       child: Column(
         children: [
-          SizedBox(height: 32),
-          // App Logo. Inside a drawer the wordmark already sits in the app bar
-          // on narrow screens, so it is skipped there to save vertical space.
-          if (!inDrawer)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+          const SizedBox(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Semantics(
+              label: 'Play It',
+              excludeSemantics: true,
               child: Row(
                 children: <Widget>[
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF10D98D), Color(0xFF08B877)],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.play_arrow,
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'PlayMo',
+                  _BrandMark(),
+                  SizedBox(width: 10),
+                  Text(
+                    'Play It',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -541,6 +746,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                 ],
               ),
             ),
+          ),
           SizedBox(height: 40),
 
           // Menu Section
@@ -746,17 +952,14 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         );
 
       case 'Downloaded':
-        return BrowsePage(
-          title: 'Downloaded',
-          subtitle: 'Titles saved for offline viewing.',
+        return DownloadedPage(
           movies: recentDownloads ?? const <Movie>[],
-          icon: Icons.download_outlined,
-          accent: const Color(0xFF34D399),
-          emptyTitle: 'No downloads',
-          emptyMessage: 'Films you download will be listed here.',
-          onTap: _watchMovie,
-          onBookmark: _toggleBookmark,
           bookmarkedIds: bookmarkedIds,
+          onPlay: _watchMovie,
+          onDetails: _watchMovie,
+          onBookmark: _toggleBookmark,
+          onRemove: _removeDownload,
+          onDownloadMore: () => _navigateToPage('Discovery'),
         );
 
       case 'Home':
@@ -817,23 +1020,57 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
-  /// The default dashboard. When the right sidebar has been moved below the
-  /// fold (narrow screens) its content is appended instead of sitting beside.
+  /// The default dashboard: a Recent movies row followed by one highlighted
+  /// card per genre, each holding a scrollable row of titles. When the right
+  /// sidebar has been moved below the fold (narrow screens) its content is
+  /// appended instead of sitting beside.
   Widget _buildHomePage(bool showRightSidebar) {
+    final List<Widget> sections = <Widget>[
+      MovieRowSection(
+        title: 'Recent movies',
+        icon: Icons.new_releases_outlined,
+        movies: recentMovies,
+        isLoading: isLoadingRows,
+        bookmarkedIds: bookmarkedIds,
+        onTap: _watchMovie,
+        onBookmark: _toggleBookmark,
+      ),
+      for (final _GenreRow row in _homeRows)
+        MovieRowSection(
+          title: row.label,
+          icon: row.icon,
+          movies: genreRows[row.label] ?? const <Movie>[],
+          isLoading: isLoadingRows && !genreRows.containsKey(row.label),
+          bookmarkedIds: bookmarkedIds,
+          onTap: _watchMovie,
+          onBookmark: _toggleBookmark,
+        ),
+    ];
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           _buildHeroBanner(),
-          const SizedBox(height: 30),
-          _buildHotNewSection(),
-          const SizedBox(height: 30),
-          _buildContinueWatchingSection(),
-          if (!showRightSidebar) ...<Widget>[
-            const SizedBox(height: 30),
-            _buildRightSidebar(forStackedLayout: true),
-          ],
+          const SizedBox(height: 26),
+          RefreshIndicator(
+            color: AppPalette.goldBright,
+            backgroundColor: AppPalette.surface,
+            onRefresh: _loadHomeRows,
+            child: ListView(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: <Widget>[
+                ...sections,
+                if (!showRightSidebar) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _buildRightSidebar(forStackedLayout: true),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1119,420 +1356,6 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
-  Widget _buildHotNewSection() {
-    if (topRated == null || topRated!.isEmpty) return SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Hot New',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 15),
-        Row(
-          children: topRated!
-              .take(4)
-              .map((movie) => Expanded(
-                    child: _buildHotNewCard(movie),
-                  ))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHotNewCard(Movie movie) {
-    return Container(
-      margin: EdgeInsets.only(right: 15),
-      child: Stack(
-        children: [
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              image: _coverImage(movie.posterPath),
-            ),
-          ),
-          // Rating badge
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.star, color: Colors.amber, size: 12),
-                  SizedBox(width: 3),
-                  Text(
-                    movie.voteAverage?.toString().substring(0, 3) ?? '0',
-                    style: TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Play button overlay
-          Positioned.fill(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _watchMovie(movie),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.black.withOpacity(0.0),
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF10D98D).withOpacity(0.9),
-                        shape: BoxShape.circle,
-                      ),
-                      child:
-                          Icon(Icons.play_arrow, color: Colors.white, size: 30),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Movie title at bottom
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black87],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    movie.title ?? '',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContinueWatchingSection() {
-    if (continueWatching == null || continueWatching!.isEmpty)
-      return SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Continue Watching',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 15),
-        Row(
-          children: continueWatching!.take(2).map((movie) {
-            final index = continueWatching!.indexOf(movie);
-            return Expanded(
-              child: _buildContinueCard(movie, (index + 1) * 35),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContinueCard(Movie movie, int progress) {
-    // Generate fake timestamps
-    final totalMinutes = 150 + (progress * 2);
-    final watchedMinutes = (totalMinutes * progress / 100).round();
-    final watchedHours = watchedMinutes ~/ 60;
-    final watchedMins = watchedMinutes % 60;
-    final totalHours = totalMinutes ~/ 60;
-    final totalMins = totalMinutes % 60;
-
-    return Container(
-      margin: EdgeInsets.only(right: 15),
-      child: Stack(
-        children: [
-          Container(
-            height: 180,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              image: _coverImage(movie.backdropPath ?? movie.posterPath),
-            ),
-          ),
-          // Dark gradient overlay
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
-                ),
-              ),
-            ),
-          ),
-          // Play button center
-          Positioned.fill(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _watchMovie(movie),
-                child: Center(
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Color(0xFF10D98D).withOpacity(0.9),
-                      shape: BoxShape.circle,
-                    ),
-                    child:
-                        Icon(Icons.play_arrow, color: Colors.white, size: 30),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Movie info at bottom
-          Positioned(
-            bottom: 10,
-            left: 10,
-            right: 10,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  movie.title ?? '',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.star, color: Colors.amber, size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      movie.voteAverage?.toString().substring(0, 3) ?? '0',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Timestamp
-          Positioned(
-            bottom: 10,
-            right: 10,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '${watchedHours.toString().padLeft(2, '0')}:${watchedMins.toString().padLeft(2, '0')} / ${totalHours.toString().padLeft(2, '0')}:${totalMins.toString().padLeft(2, '0')}:13',
-                style: TextStyle(color: Colors.white, fontSize: 11),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopRatedSection() {
-    if (topRated == null || topRated!.isEmpty) return SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Top rated',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold),
-                ),
-                SizedBox(width: 8),
-                Icon(Icons.star, color: Colors.amber, size: 20),
-              ],
-            ),
-            TextButton(
-              onPressed: () =>
-                  _showSnackBar('Loading top rated...', Icons.star),
-              child: Text('See all >', style: TextStyle(color: Colors.white60)),
-            ),
-          ],
-        ),
-        SizedBox(height: 16),
-        SizedBox(
-          height: 240,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: topRated!.take(6).length,
-            itemBuilder: (context, index) {
-              return _buildTopRatedCard(topRated![index]);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTopRatedCard(Movie movie) {
-    return Container(
-      width: 160,
-      margin: EdgeInsets.only(right: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: _coverImage(movie.posterPath),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.star, color: Colors.amber, size: 12),
-                        SizedBox(width: 2),
-                        Text(
-                          movie.voteAverage ?? '0',
-                          style: TextStyle(color: Colors.white, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  right: 8,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _watchMovie(movie),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF10D98D),
-                            padding: EdgeInsets.symmetric(vertical: 6),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6)),
-                          ),
-                          child: Text('Watch',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      SizedBox(width: 4),
-                      InkWell(
-                        onTap: () => _toggleBookmark(movie),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: bookmarkedIds.contains(movie.id)
-                                ? Color(0xFF10D98D)
-                                : Colors.white24,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            bookmarkedIds.contains(movie.id)
-                                ? Icons.bookmark
-                                : Icons.add,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            movie.title ?? '',
-            style: TextStyle(
-                color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            movie.releaseDate?.split('-').first ?? '2021',
-            style: TextStyle(color: Colors.white60, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildRightSidebar({bool forStackedLayout = false}) {
     final List<Widget> sections = <Widget>[
       _buildSidebarSection(
@@ -1764,6 +1587,97 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
               Text(
                 movie.releaseDate?.split('-').first ?? '2021',
                 style: TextStyle(color: Colors.white70, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One genre row on the home page: a display label, the TMDB genre id and an
+/// icon for its header. [isSeries] rows come from the TV endpoints instead.
+class _GenreRow {
+  const _GenreRow(this.label, this.genreId, this.icon, {this.isSeries = false});
+
+  final String label;
+  final int genreId;
+  final IconData icon;
+  final bool isSeries;
+}
+
+/// The Play It logo: a film icon in a rounded gradient tile.
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = compact ? 30 : 32;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[AppPalette.brand, AppPalette.brandDark],
+        ),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(Icons.movie, color: Colors.white, size: compact ? 18 : 20),
+    );
+  }
+}
+
+/// One destination in the mobile bottom navigation bar.
+class _NavButton extends StatelessWidget {
+  const _NavButton({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = isActive ? AppPalette.brand : AppPalette.textMuted;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppPalette.brand.withValues(alpha: 0.16)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(icon, size: 21, color: color),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10.5,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                ),
               ),
             ],
           ),
