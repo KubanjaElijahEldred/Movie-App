@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:movies/api/endpoints.dart';
+import 'package:movies/services/download_service.dart';
 import 'package:movies/constants/api_constants.dart';
 import 'package:movies/constants/app_theme.dart';
 import 'package:movies/modal_class/function.dart';
@@ -27,6 +30,11 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<Movie>? trendingMovies;
+
+  /// Slides for the top banner. Sourced from TMDB's "now playing" list so the
+  /// banner rotates through the newest releases, falling back to the trending
+  /// feed if that request comes back empty.
+  List<Movie> heroMovies = const <Movie>[];
   List<Movie>? continueWatching;
   List<Movie>? topRated;
   List<Movie>? recentDownloads;
@@ -47,6 +55,17 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   /// Lets the mobile app bar jump straight to the search box.
   final GlobalKey _searchFieldKey = GlobalKey();
   final FocusNode _searchFocusNode = FocusNode();
+
+  /// Drives the top banner slideshow.
+  final PageController _heroController = PageController();
+  Timer? _heroTimer;
+  int _heroPage = 0;
+
+  /// Owns every download so progress survives navigating between pages.
+  final DownloadService _downloadService = DownloadService();
+
+  /// How long each banner slide stays up.
+  static const Duration _heroInterval = Duration(seconds: 5);
 
   /// Movies for the Discovery page, loaded per genre.
   List<Movie> genreMovies = [];
@@ -108,8 +127,32 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     _loadHomeRows();
   }
 
+  void _onHeroPageChanged(int page) {
+    setState(() => _heroPage = page);
+  }
+
+  /// Starts the auto-advance timer, replacing any existing one.
+  void _startHeroTimer() {
+    _heroTimer?.cancel();
+    if (heroMovies.length < 2) return;
+    _heroTimer = Timer.periodic(_heroInterval, (Timer timer) {
+      if (!mounted || !_heroController.hasClients) return;
+      if (!_heroController.position.isScrollingNotifier.value) {
+        final int next = (_heroPage + 1) % heroMovies.length;
+        _heroController.animateToPage(
+          next,
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _heroTimer?.cancel();
+    _heroController.dispose();
+    _downloadService.dispose();
     searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -152,10 +195,23 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         popular = await fetchMovies(Endpoints.popularMoviesUrl(1));
       }
 
+      // The banner rotates through the seven newest releases, so it wants
+      // "now playing" rather than the popularity-sorted trending feed.
+      List<Movie> nowPlaying = const <Movie>[];
+      try {
+        nowPlaying = await fetchMovies(Endpoints.nowPlayingMoviesUrl(1));
+      } catch (_) {
+        // Not fatal: the banner falls back to trending below.
+      }
+
       setState(() {
         genres = genresList.genres ?? [];
         trendingMovies = trending;
+        heroMovies = _pickHeroSlides(nowPlaying, trending);
         topRated = rated;
+        // Safe to call inside setState: the timer only touches the controller
+        // once the frame is built.
+        if (heroMovies.length > 1) _startHeroTimer();
         continueWatching = trending.take(4).toList();
         recentDownloads = popular.take(10).toList();
         bookmarked = rated.take(4).toList();
@@ -168,6 +224,29 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     }
   }
 
+  /// Number of slides the top banner rotates through.
+  static const int _heroSlideCount = 7;
+
+  /// Chooses the banner slides, preferring the newest releases.
+  ///
+  /// Only titles with artwork are kept, because a slide with neither a backdrop
+  /// nor a poster would render as an empty panel. Falls back to the trending
+  /// feed when "now playing" is empty or unusable, and de-duplicates by id so
+  /// the same film never occupies two slides.
+  List<Movie> _pickHeroSlides(List<Movie> nowPlaying, List<Movie> trending) {
+    final List<Movie> source = nowPlaying.isNotEmpty ? nowPlaying : trending;
+    final List<Movie> slides = <Movie>[];
+    final Set<int> seen = <int>{};
+
+    for (final Movie movie in source) {
+      if (slides.length == _heroSlideCount) break;
+      if (movie.id != null && !seen.add(movie.id!)) continue;
+      if (movie.backdropPath == null && movie.posterPath == null) continue;
+      slides.add(movie);
+    }
+    return slides;
+  }
+
   // Navigate to movie details
   void _watchMovie(Movie movie) {
     Navigator.push(
@@ -178,6 +257,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
           themeData: Theme.of(context),
           heroId: '${movie.id}',
           genres: genres,
+          downloadService: _downloadService,
         ),
       ),
     );
@@ -208,9 +288,36 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     });
   }
 
+  /// Titles with a finished download on disk, resolved from every list the
+  /// dashboard has loaded so the Downloaded page shows real files.
+  List<Movie> get _downloadedMovies {
+    final Map<int, Movie> byId = <int, Movie>{};
+    for (final List<Movie>? list in <List<Movie>?>[
+      trendingMovies,
+      topRated,
+      popular,
+      recommended,
+      continueWatching,
+      recentDownloads,
+      genreMovies,
+      heroMovies,
+    ]) {
+      for (final Movie movie in list ?? const <Movie>[]) {
+        if (movie.id != null) byId[movie.id!] = movie;
+      }
+    }
+
+    return byId.entries
+        .where((MapEntry<int, Movie> entry) =>
+            _downloadService.isDownloaded(entry.key))
+        .map((MapEntry<int, Movie> entry) => entry.value)
+        .toList();
+  }
+
   /// Drops a title from the Downloaded page so its Remove button is a real
   /// action rather than a placeholder.
   void _removeDownload(Movie movie) {
+    _downloadService.remove(movie.id);
     setState(() {
       recentDownloads?.removeWhere((Movie m) => m.id == movie.id);
     });
@@ -429,7 +536,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text(
                 'Log out',
-                style: TextStyle(color: Color(0xFF10D98D)),
+                style: TextStyle(color: AppPalette.action),
               ),
             ),
           ],
@@ -953,7 +1060,10 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
 
       case 'Downloaded':
         return DownloadedPage(
-          movies: recentDownloads ?? const <Movie>[],
+          // Only titles with a finished file belong here, rather than an
+          // arbitrary slice of the popular feed.
+          movies: _downloadedMovies,
+          downloadService: _downloadService,
           bookmarkedIds: bookmarkedIds,
           onPlay: _watchMovie,
           onDetails: _watchMovie,
@@ -1266,94 +1376,210 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
+  /// The top banner: a self-advancing slideshow of the newest releases.
+  ///
+  /// Each slide fills the box with a [BoxFit.cover] backdrop, so nothing is
+  /// stretched or letterboxed regardless of the source aspect ratio, and falls
+  /// back to the poster when a title has no backdrop. Advancing is driven by a
+  /// timer that pauses while the user is dragging and resumes afterwards.
   Widget _buildHeroBanner() {
-    if (trendingMovies == null || trendingMovies!.isEmpty)
-      return SizedBox.shrink();
-    final movie = trendingMovies!.first;
+    if (heroMovies.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      height: 350,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        image: _coverImage(movie.backdropPath ?? movie.posterPath,
-            size: 'original'),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
-          ),
-        ),
-        padding: EdgeInsets.all(30),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Bookmark and Favorite icons at top
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF10D98D),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Icons.bookmark, color: Colors.white, size: 18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            height: 350,
+            child: Stack(
+              children: <Widget>[
+                // The timer is started from _loadData once the slides exist,
+                // since PageView.builder has no creation callback.
+                PageView.builder(
+                  controller: _heroController,
+                  itemCount: heroMovies.length,
+                  onPageChanged: _onHeroPageChanged,
+                  itemBuilder: (BuildContext context, int index) {
+                    return _buildHeroSlide(heroMovies[index]);
+                  },
                 ),
-                SizedBox(width: 10),
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(6),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Colors.black.withValues(alpha: 0.55),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Icon(Icons.favorite_border,
-                      color: Colors.white, size: 18),
+                ),
+                Positioned(
+                  right: 14,
+                  bottom: 14,
+                  child: _HeroDots(
+                    count: heroMovies.length,
+                    active: _heroPage,
+                  ),
                 ),
               ],
             ),
-            Spacer(),
-            // Movie title
-            Text(
-              movie.title ?? '',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 2,
-            ),
-            SizedBox(height: 8),
-            // Genres
-            Text(
-              'Action, Adventure, Fantasy',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            SizedBox(height: 15),
-            // Watch now button
-            ElevatedButton(
-              onPressed: () => _watchMovie(movie),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF10D98D),
-                padding: EdgeInsets.symmetric(horizontal: 30, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text(
-                'Watch now',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildHeroSlide(Movie movie) {
+    final String? backdrop =
+        tmdbImageUrl(movie.backdropPath, size: 'original');
+    // A poster is 2:3, so stretching one across a 16:9 banner would distort
+    // it badly. It is only used when there is no backdrop at all.
+    final String? poster = tmdbImageUrl(movie.posterPath, size: 'w780');
+    final String? image = backdrop ?? poster;
+    final bool isBookmarked =
+        movie.id != null && bookmarkedIds.contains(movie.id);
+
+    return GestureDetector(
+      onTap: () => _watchMovie(movie),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (image == null)
+            Container(color: AppPalette.surface)
+          else
+            Image.network(
+              image,
+              fit: BoxFit.cover,
+              // Anchored to the top so faces and titles in a backdrop are not
+              // cropped by the banner's fixed height.
+              alignment: Alignment.topCenter,
+              errorBuilder: (
+                BuildContext context,
+                Object error,
+                StackTrace? stack,
+              ) => Container(color: AppPalette.surface),
+              loadingBuilder: (
+                BuildContext context,
+                Widget child,
+                ImageChunkEvent? progress,
+              ) {
+                if (progress == null) return child;
+                return Container(color: AppPalette.surface);
+              },
+            ),
+          // Scrim: strong at the bottom for the text, light at the top so the
+          // artwork stays visible.
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Colors.black.withValues(alpha: 0.25),
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha: 0.88),
+                ],
+                stops: const <double>[0, 0.45, 1],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    _HeroChip(
+                      label: 'Now playing',
+                      color: AppPalette.brand,
+                    ),
+                    const SizedBox(width: 8),
+                    _HeroChip(
+                      label: isBookmarked ? 'Bookmarked' : 'Save',
+                      color: Colors.white24,
+                      icon: isBookmarked
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                      onTap: () => _toggleBookmark(movie),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  movie.title ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _heroSubtitle(movie),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13.5,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => _watchMovie(movie),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppPalette.action,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 26,
+                      vertical: 13,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Watch now',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  /// Rating and release year for a banner slide, skipping either when the
+  /// underlying value is missing rather than printing a placeholder.
+  String _heroSubtitle(Movie movie) {
+    final double? rating = double.tryParse(movie.voteAverage ?? '');
+    final String year = (movie.releaseDate ?? '').split('-').first;
+    final bool hasYear = year.length == 4;
+
+    if (rating == null && !hasYear) return 'Latest release';
+    if (rating == null) return year;
+    if (!hasYear) return 'Rated ${rating.toStringAsFixed(1)} / 10';
+    return '${rating.toStringAsFixed(1)} / 10  ·  $year';
   }
 
   Widget _buildRightSidebar({bool forStackedLayout = false}) {
@@ -1438,7 +1664,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             child: ElevatedButton(
               onPressed: onToggle,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10D98D),
+                backgroundColor: AppPalette.action,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
@@ -1598,6 +1824,84 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
 
 /// One genre row on the home page: a display label, the TMDB genre id and an
 /// icon for its header. [isSeries] rows come from the TV endpoints instead.
+/// A small pill used on the banner slide, for the "Now playing" badge and the
+/// bookmark toggle.
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({
+    required this.label,
+    required this.color,
+    this.icon,
+    this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final IconData? icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(6),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(icon, color: Colors.white, size: 15),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Page indicator for the banner slideshow. The active dot is wider so the
+/// current slide reads at a glance.
+class _HeroDots extends StatelessWidget {
+  const _HeroDots({required this.count, required this.active});
+
+  final int count;
+  final int active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(count, (int index) {
+        final bool isActive = index == active;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.only(left: 5),
+          height: 7,
+          width: isActive ? 20 : 7,
+          decoration: BoxDecoration(
+            color: isActive ? Colors.white : Colors.white38,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }),
+    );
+  }
+}
+
 class _GenreRow {
   const _GenreRow(this.label, this.genreId, this.icon, {this.isSeries = false});
 

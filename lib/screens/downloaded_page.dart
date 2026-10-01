@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:movies/constants/app_theme.dart';
 import 'package:movies/modal_class/movie.dart';
+import 'package:movies/services/download_service.dart';
 
 /// A red primary action button used across this page.
 class DangerButton extends StatelessWidget {
@@ -78,6 +79,7 @@ class DownloadedPage extends StatelessWidget {
     this.onDownloadMore,
     this.bookmarkedIds = const <int>[],
     this.onBookmark,
+    this.downloadService,
   });
 
   final List<Movie> movies;
@@ -87,6 +89,9 @@ class DownloadedPage extends StatelessWidget {
   final VoidCallback? onDownloadMore;
   final List<int> bookmarkedIds;
   final ValueChanged<Movie>? onBookmark;
+
+  /// Optional, so the page still builds without a running download session.
+  final DownloadService? downloadService;
 
   @override
   Widget build(BuildContext context) {

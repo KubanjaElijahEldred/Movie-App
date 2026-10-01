@@ -4,6 +4,10 @@ import 'package:movies/modal_class/movie.dart';
 
 /// A single movie inside a [MovieRowSection].
 ///
+/// Laid out as a product card: the poster fills the top with only its upper
+/// corners rounded, and the title plus rating sit in a faint caption strip
+/// underneath whose lower corners are rounded to match.
+///
 /// Uses [Image.network] with an errorBuilder because a TMDB poster that fails
 /// to load would otherwise be reported as an uncaught exception.
 class MovieRowCard extends StatelessWidget {
@@ -42,7 +46,9 @@ class MovieRowCard extends StatelessWidget {
               children: <Widget>[
                 Material(
                   color: AppPalette.surfaceHigh,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(10),
+                  ),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: onTap,
@@ -67,58 +73,64 @@ class MovieRowCard extends StatelessWidget {
                     onPressed: onBookmark,
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(8, 18, 8, 8),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[Colors.transparent, Color(0xE6000000)],
-                      ),
-                    ),
-                    child: Text(
-                      movie.title ?? 'Untitled',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: <Widget>[
-              const Icon(Icons.star, color: AppPalette.gold, size: 14),
-              const SizedBox(width: 3),
-              Text(
-                _rating,
-                style: const TextStyle(
-                  color: AppPalette.textSecondary,
-                  fontSize: 11,
-                ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(10),
               ),
-              if (_year.isNotEmpty && _year.length == 4) ...<Widget>[
-                const SizedBox(width: 6),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
                 Text(
-                  _year,
+                  movie.title ?? 'Untitled',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppPalette.textMuted,
-                    fontSize: 11,
+                    color: AppPalette.textPrimary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
                   ),
                 ),
+                const SizedBox(height: 3),
+                Row(
+                  children: <Widget>[
+                    const Icon(
+                      Icons.star,
+                      color: AppPalette.gold,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      _rating,
+                      style: const TextStyle(
+                        color: AppPalette.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (_year.isNotEmpty && _year.length == 4) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Text(
+                        _year,
+                        style: const TextStyle(
+                          color: AppPalette.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -176,9 +188,11 @@ class _MissingPoster extends StatelessWidget {
   }
 }
 
-/// One genre section on the home page: a highlighted card with a yellow
-/// gradient background and a highlighted border, holding a scrollable row of
-/// more than ten movies.
+/// One genre section on the home page: a plain title over a scrollable row of
+/// product cards.
+///
+/// There is no tinted panel behind the row, matching the reference layout, so
+/// the posters sit straight on the page background.
 class MovieRowSection extends StatefulWidget {
   const MovieRowSection({
     super.key,
@@ -233,31 +247,24 @@ class _MovieRowSectionState extends State<MovieRowSection> {
     if (widget.isLoading) return _skeleton();
     if (widget.movies.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 22),
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
-      decoration: BoxDecoration(
-        gradient: AppPalette.goldGradient,
-        borderRadius: BorderRadius.circular(18),
-        border: AppPalette.goldBorder(),
-        boxShadow: AppPalette.goldShadow(),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 26),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           _header(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               _cardsPerPage = (constraints.maxWidth / 148).floor().clamp(1, 12);
               return SizedBox(
-                height: 232,
+                height: 236,
                 child: ListView.separated(
                   controller: _controller,
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   itemCount: widget.movies.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (BuildContext context, int index) {
                     final Movie movie = widget.movies[index];
                     return MovieRowCard(
@@ -281,17 +288,12 @@ class _MovieRowSectionState extends State<MovieRowSection> {
     final int count = widget.movies.length;
     return Row(
       children: <Widget>[
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: AppPalette.gold.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppPalette.gold.withValues(alpha: 0.5)),
-          ),
-          child: Icon(widget.icon, color: AppPalette.goldBright, size: 19),
+        Icon(
+          widget.icon,
+          color: AppPalette.textMuted,
+          size: 17,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,7 +304,7 @@ class _MovieRowSectionState extends State<MovieRowSection> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppPalette.textPrimary,
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -333,22 +335,18 @@ class _MovieRowSectionState extends State<MovieRowSection> {
   }
 
   Widget _skeleton() {
-    return Container(
-      height: 300,
-      margin: const EdgeInsets.only(bottom: 22),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: AppPalette.goldGradient,
-        borderRadius: BorderRadius.circular(18),
-        border: AppPalette.goldBorder(),
-      ),
-      child: const Center(
-        child: SizedBox(
-          width: 26,
-          height: 26,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.4,
-            valueColor: AlwaysStoppedAnimation<Color>(AppPalette.goldBright),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 26),
+      child: SizedBox(
+        height: 260,
+        child: Center(
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              valueColor: AlwaysStoppedAnimation<Color>(AppPalette.brand),
+            ),
           ),
         ),
       ),
@@ -372,14 +370,14 @@ class _ArrowButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: AppPalette.gold.withValues(alpha: 0.16),
+        color: AppPalette.surfaceHigh,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
           child: Padding(
             padding: const EdgeInsets.all(7),
-            child: Icon(icon, color: AppPalette.goldBright, size: 20),
+            child: Icon(icon, color: AppPalette.textSecondary, size: 20),
           ),
         ),
       ),

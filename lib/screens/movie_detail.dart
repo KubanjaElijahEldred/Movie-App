@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:movies/api/endpoints.dart';
 import 'package:movies/constants/api_constants.dart';
+import 'package:movies/constants/app_theme.dart';
 import 'package:movies/modal_class/credits.dart';
 import 'package:movies/modal_class/genres.dart';
 import 'package:movies/modal_class/movie.dart';
@@ -8,6 +9,10 @@ import 'package:movies/modal_class/video.dart';
 import 'package:movies/modal_class/function.dart';
 import 'package:movies/screens/widgets.dart';
 import 'package:movies/screens/trailer_player.dart';
+import 'package:movies/models/movie_source.dart';
+import 'package:movies/screens/where_to_watch_sheet.dart';
+import 'package:movies/services/download_service.dart';
+import 'package:movies/services/movie_source_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MovieDetailPage extends StatefulWidget {
@@ -15,11 +20,18 @@ class MovieDetailPage extends StatefulWidget {
   final ThemeData themeData;
   final String heroId;
   final List<Genres> genres;
+
+  /// Shared across the app so a download started here is visible on the
+  /// Downloaded page. Optional because a few older call sites predate the
+  /// download feature; when null the page falls back to a private instance.
+  final DownloadService? downloadService;
+
   MovieDetailPage(
       {required this.movie,
       required this.themeData,
       required this.heroId,
-      required this.genres});
+      required this.genres,
+      this.downloadService});
   @override
   _MovieDetailPageState createState() => _MovieDetailPageState();
 }
@@ -28,10 +40,24 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   List<Video>? trailers;
   bool isLoadingTrailers = false;
 
+  /// The app-wide service when one was supplied, otherwise a local instance
+  /// so this page still works from older call sites.
+  late final DownloadService _downloads =
+      widget.downloadService ?? DownloadService();
+
+  /// True when this state created its own service and must dispose it.
+  late final bool _ownsDownloads = widget.downloadService == null;
+
   @override
   void initState() {
     super.initState();
     _fetchTrailers();
+  }
+
+  @override
+  void dispose() {
+    if (_ownsDownloads) _downloads.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchTrailers() async {
@@ -202,11 +228,12 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                         icon: Icons.download,
                                         label: 'Download',
                                         onTap: _downloadMovie,
-                                        color: Colors.green,
+                                        color: AppPalette.action,
                                       ),
                                     ],
                                   ),
                                 ),
+                                _buildDownloadProgress(),
                                 Expanded(
                                   child: SingleChildScrollView(
                                     physics: BouncingScrollPhysics(),
@@ -448,60 +475,196 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     );
   }
 
-  void _playMovie() async {
-    // For demonstration, this will search for the movie on YouTube
-    // In a real app, you might integrate with a streaming service
-    final movieTitle = widget.movie.title!.replaceAll(' ', '+');
-    final url = Uri.parse('https://www.youtube.com/results?search_query=$movieTitle+full+movie');
-    
-    try {
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open browser')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+  /// Opens the legal viewing options for this title.
+  ///
+  /// The previous behaviour built a YouTube *search* URL, which never played
+  /// the film. The sheet now shows TMDB's real watch providers and, when the
+  /// title has a licence that permits it, a working file download.
+  void _playMovie() {
+    WhereToWatchSheet.show(
+      context,
+      title: widget.movie.title ?? 'This title',
+      tmdbId: widget.movie.id,
+      downloadService: _downloads,
+    );
+  }
+
+  /// Starts a real file download for this title.
+  ///
+  /// A download is only offered when the title resolves to a source whose
+  /// licence permits redistribution. Anything else opens the provider list
+  /// instead, so the button never silently becomes a dead link.
+  Future<void> _downloadMovie() async {
+    final MovieSourceService sources = MovieSourceService();
+    final DownloadSource? source = await sources.fetchDownloadSource(
+      widget.movie.id,
+      widget.movie.title,
+    );
+    sources.dispose();
+
+    if (!mounted) return;
+
+    if (source == null) {
+      await WhereToWatchSheet.show(
+        context,
+        title: widget.movie.title ?? 'This title',
+        tmdbId: widget.movie.id,
+        downloadService: _downloads,
+      );
+      return;
+    }
+
+    await _downloads.start(
+      movieId: widget.movie.id,
+      title: widget.movie.title ?? 'Untitled',
+      source: source,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Downloading ${source.fileName}'),
+        backgroundColor: AppPalette.danger,
+      ),
+    );
+  }
+
+  /// Hands a source URL to the browser or the OS.
+  ///
+  /// Used as the manual route when a download cannot be completed in-app, so
+  /// the user still gets the file rather than an error with no way forward.
+  Future<void> _openSourceFile(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the file')),
+      );
     }
   }
 
-  void _downloadMovie() async {
-    // For demonstration, this will open TMDB page
-    // In a real app, you might integrate with a download service
-    final url = Uri.parse('https://www.themoviedb.org/movie/${widget.movie.id}');
-    
-    try {
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Opening movie page in browser...'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open browser')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+  /// Live progress for this title's download, shown under the action row.
+  Widget _buildDownloadProgress() {
+    final DownloadTask? task = _downloads.taskFor(widget.movie.id);
+    if (task == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: task,
+      builder: (BuildContext context, Widget? child) {
+        final bool active =
+            task.status == DownloadStatus.downloading ||
+                task.status == DownloadStatus.queued;
+        final bool done = task.status == DownloadStatus.completed;
+        // A source that refuses cross-origin reads cannot be buffered by a
+        // browser, so the file is offered directly instead of a dead error.
+        final bool manual = task.isCrossOriginBlocked;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(
+                    done
+                        ? Icons.check_circle
+                        : active
+                            ? Icons.downloading
+                            : Icons.error_outline,
+                    color: done
+                        ? AppPalette.brand
+                        : active
+                            ? AppPalette.dangerBright
+                            : AppPalette.textMuted,
+                    size: 15,
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      switch (task.status) {
+                        DownloadStatus.completed => 'Saved offline',
+                        DownloadStatus.failed => manual
+                            ? 'This source blocks browser downloads'
+                            : 'Download failed: '
+                                '${task.error ?? 'unknown error'}',
+                        DownloadStatus.cancelled => 'Download cancelled',
+                        _ => 'Downloading · ${task.progressLabel}',
+                      },
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: done
+                            ? AppPalette.brand
+                            : AppPalette.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (active)
+                    TextButton(
+                      onPressed: () => _downloads.cancel(
+                        widget.movie.id,
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppPalette.textSecondary,
+                        minimumSize: const Size(0, 28),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    )
+                  else if (manual)
+                    TextButton(
+                      onPressed: () => _openSourceFile(task.source.url),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppPalette.brand,
+                        minimumSize: const Size(0, 28),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text(
+                        'Open file',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    )
+                  else
+                    TextButton(
+                      onPressed: () => _downloads.remove(
+                        widget.movie.id,
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppPalette.dangerBright,
+                        minimumSize: const Size(0, 28),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text(
+                        'Remove',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
+              if (active && task.total > 0) ...<Widget>[
+                const SizedBox(height: 7),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: task.progress,
+                    minHeight: 4,
+                    backgroundColor: AppPalette.surfaceHigh,
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(AppPalette.danger),
+                  ),
+                ),
+              ],
+            ],
+          ),
         );
-      }
-    }
+      },
+    );
   }
 }

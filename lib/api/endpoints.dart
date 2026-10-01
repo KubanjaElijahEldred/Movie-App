@@ -71,6 +71,29 @@ class Endpoints {
     return "$TMDB_API_BASE_URL/movie/$movieId/videos?api_key=$TMDB_API_KEY";
   }
 
+  /// Legal streaming, rental and purchase options for a title.
+  ///
+  /// Backed by JustWatch data, so the links are the rights holders' own pages
+  /// rather than a third-party scraper. [region] is the ISO 3166-1 alpha-2
+  /// country code the availability should be reported for; omitting it makes
+  /// TMDB guess from the caller's IP, which is wrong for a VPN or a server.
+  static String watchProvidersUrl(int movieId, String region) {
+    return "$TMDB_API_BASE_URL/movie/$movieId/watch/providers"
+        '?api_key=$TMDB_API_KEY&language=en-US&watch_region=${region.toUpperCase()}';
+  }
+
+  /// The Blender open-movie catalogue the download button draws from.
+  ///
+  /// These are feature films the creators published for free download, so
+  /// fetching one is permitted by its licence. The app bundles a short
+  /// hard-coded list of direct file URLs rather than scraping a third-party
+  /// video site.
+  static const List<String> openMovieTitles = <String>[
+    'Big Buck Bunny',
+    'Sintel',
+    'Tears of Steel',
+  ];
+
   // TV Shows endpoints
   static String discoverTVUrl(int page) {
     return '$TMDB_API_BASE_URL/discover/tv?api_key=$TMDB_API_KEY'

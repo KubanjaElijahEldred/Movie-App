@@ -29,6 +29,20 @@ class AppPalette {
   static const Color dangerBright = Color(0xFFF43F5E);
   static const Color dangerDark = Color(0xFF9F1239);
 
+  /// Primary action buttons (Watch now, See more, Log out, Download).
+  ///
+  /// These were green until they moved onto the red family; the green
+  /// [brand] colour survives only in the logo tile and the rating stars.
+  static const Color action = dangerBright;
+  static const Color actionDark = dangerDark;
+
+  /// Gradient for the primary action buttons.
+  static const LinearGradient actionGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: <Color>[action, actionDark],
+  );
+
   /// Text colours.
   static const Color textPrimary = Colors.white;
   static const Color textSecondary = Color(0xB3FFFFFF);
