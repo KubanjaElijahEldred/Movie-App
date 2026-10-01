@@ -45,7 +45,7 @@ Vercel has no Flutter runtime, so the app is compiled by the Flutter SDK in CI
 and the finished static bundle is uploaded to Vercel.
 
 Every push to `main` runs `.github/workflows/deploy.yml`, which builds the web
-app and deploys it to https://playmo-movies.vercel.app.
+app and deploys it to https://play-it-movies.vercel.app.
 
 To deploy from your machine instead, run:
 

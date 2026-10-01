@@ -19,14 +19,18 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Play It - stream movies and series.">
+  <meta name="theme-color" content="#10D98D">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Play It">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <!-- iOS resolves the Add to Home Screen icon from this link and ignores
+       manifest.json, so it needs a real 180x180 rather than the 192 PWA one. -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Play It - Movie Streaming</title>
@@ -34,5 +38,17 @@
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Registered by hand rather than by Flutter, because the worker Flutter
+    // generates only unregisters itself and leaves no fetch handler, which
+    // disqualifies the site from Chrome's install criteria.
+    window.addEventListener('load', function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('playit-sw.js', { scope: './' }).catch(function (error) {
+          console.warn('Play It service worker registration failed:', error);
+        });
+      }
+    });
+  </script>
 </body>
 </html>

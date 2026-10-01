@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/((?!assets/|canvaskit/|icons/|favicon\\.png|manifest\\.json|flutter\\.js|flutter_bootstrap\\.js|flutter_service_worker\\.js|version\\.json|main\\.dart\\.js|favicon\\.ico|robots\\.txt).*)",
+      "source": "/((?!assets/|canvaskit/|icons/|favicon\\.png|manifest\\.json|flutter\\.js|flutter_bootstrap\\.js|flutter_service_worker\\.js|playit-sw\\.js|version\\.json|main\\.dart\\.js|favicon\\.ico|robots\\.txt).*)",
       "destination": "/index.html"
     }
   ],

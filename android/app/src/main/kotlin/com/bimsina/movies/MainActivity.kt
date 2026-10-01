@@ -1,7 +1,5 @@
-package com.example.your_app;
+package com.bimsina.movies
 
-import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.android.FlutterActivity
 
-public class MainActivity extends FlutterActivity {
-    // Empty class is sufficient
-}
+class MainActivity : FlutterActivity()

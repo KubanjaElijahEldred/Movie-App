@@ -35,6 +35,12 @@
 **/android/gradlew.bat
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
+**/.flutter-plugins-dependencies
+
+# Android release signing — never commit these
+**/android/key.properties
+**/android/*.jks
+**/android/*.keystore
 
 # iOS/XCode related
 **/ios/**/*.mode1v3

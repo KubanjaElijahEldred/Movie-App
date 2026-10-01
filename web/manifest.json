@@ -1,23 +1,29 @@
 {
     "name": "Play It - Movie Streaming",
     "short_name": "Play It",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
     "description": "Play It - stream movies and series.",
+    "id": "/",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
+    "background_color": "#0D0F1F",
+    "theme_color": "#10D98D",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "categories": ["entertainment", "video", "lifestyle"],
     "icons": [
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-maskable-192.png",

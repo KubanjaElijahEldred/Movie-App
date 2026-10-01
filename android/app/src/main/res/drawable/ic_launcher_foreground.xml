@@ -1,13 +1,17 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="51.085567"
-    android:viewportHeight="51.085567"
-    android:tint="#8468DD">
-  <group android:translateX="13.542784"
-      android:translateY="13.542784">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <!-- The Play It mark: a white clapperboard centred inside the 66dp safe zone
+       that Android's adaptive-icon mask can never clip. -->
+  <group
+      android:scaleX="2.5"
+      android:scaleY="2.5"
+      android:translateX="24"
+      android:translateY="24">
       <path
-          android:fillColor="#FF000000"
-          android:pathData="M17,10.5V7c0,-0.55 -0.45,-1 -1,-1H4c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12c0.55,0 1,-0.45 1,-1v-3.5l4,4v-11l-4,4z"/>
+          android:fillColor="#FFFFFF"
+          android:pathData="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
   </group>
 </vector>
