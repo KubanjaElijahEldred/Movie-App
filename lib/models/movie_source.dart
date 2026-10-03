@@ -84,6 +84,7 @@ class OpenFilm {
     required this.fileName,
     required this.sizeBytes,
     required this.license,
+    this.mimeType = 'video/mp4',
   });
 
   /// TMDB listing, so a catalogue card can deep-link to the title.
@@ -100,10 +101,15 @@ class OpenFilm {
   final int sizeBytes;
   final String license;
 
+  /// Content type served by [url]. Carried through so a saved file keeps a
+  /// real extension, since not every open release is mp4.
+  final String mimeType;
+
   DownloadSource get source => DownloadSource(
         url: url,
         fileName: fileName,
         sizeBytes: sizeBytes,
         license: license,
+        mimeType: mimeType,
       );
 }

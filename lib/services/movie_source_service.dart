@@ -33,22 +33,28 @@ class MovieSourceService {
   ///
   /// Each entry is a complete short film released by its creators under a
   /// licence that permits redistribution (Blender's open movies are CC BY).
-  /// The files are served by the Internet Archive with `Access-Control-Allow-
+  /// The files are served by Wikimedia Commons with `Access-Control-Allow-
   /// Origin: *`, which is what lets the web build fetch them at all.
   ///
   /// These are the only titles the app offers as a file. A commercial title
   /// resolves to watch providers instead, because no licence permits
   /// redistributing it.
   static const List<OpenFilm> openFilms = <OpenFilm>[
+    // Served from Wikimedia Commons rather than archive.org: archive.org
+    // redirects to a CDN that omits Access-Control-Allow-Origin, so a browser
+    // can play the file but the app can never read the bytes to save them.
+    // Commons answers `Access-Control-Allow-Origin: *` on the file itself, so
+    // the in-page download actually completes.
     OpenFilm(
       tmdbId: 86644,
       title: 'Big Buck Bunny',
       year: '2008',
       runtime: '9 min',
-      url: 'https://archive.org/download/BigBuckBunny_124/Content/'
-          'big_buck_bunny_720p_surround.mp4',
-      fileName: 'Big_Buck_Bunny_720p.mp4',
-      sizeBytes: 61878609,
+      url: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/'
+          'Big_buck_bunny_720p_5mb.webm',
+      fileName: 'Big_Buck_Bunny_720p.webm',
+      sizeBytes: 5709008,
+      mimeType: 'video/webm',
       license: 'CC BY 3.0 — Blender Foundation',
     ),
     OpenFilm(
@@ -56,9 +62,11 @@ class MovieSourceService {
       title: 'Spring',
       year: '2019',
       runtime: '8 min',
-      url: 'https://archive.org/download/springopenmovie/springopenmovie.mp4',
-      fileName: 'Spring_Open_Movie.mp4',
-      sizeBytes: 90190341,
+      url: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/'
+          'Spring_-_Blender_Open_Movie.webm',
+      fileName: 'Spring_Open_Movie.webm',
+      sizeBytes: 81781205,
+      mimeType: 'video/webm',
       license: 'CC BY 4.0 — Blender Studio',
     ),
     OpenFilm(
@@ -66,10 +74,11 @@ class MovieSourceService {
       title: 'Sprite Fright',
       year: '2022',
       runtime: '5 min',
-      url: 'https://archive.org/download/sprite-fright/'
-          'Sprite%20Fright%20-%20Open%20Movie%20by%20Blender%20Studio-804p.mp4',
-      fileName: 'Sprite_Fright_1080p.mp4',
-      sizeBytes: 110581245,
+      url: 'https://upload.wikimedia.org/wikipedia/commons/7/76/'
+          'Sprite_Fright_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'Sprite_Fright_1080p.webm',
+      sizeBytes: 158621642,
+      mimeType: 'video/webm',
       license: 'CC BY 4.0 — Blender Studio',
     ),
   ];
