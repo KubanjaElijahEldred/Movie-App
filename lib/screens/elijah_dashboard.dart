@@ -335,7 +335,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
             Text(message),
           ],
         ),
-        backgroundColor: Color(0xFF10D98D),
+        backgroundColor: AppPalette.brand,
         duration: Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -943,7 +943,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         margin: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         decoration: BoxDecoration(
-          color: isActive ? Color(0xFF10D98D) : Colors.transparent,
+          color: isActive ? AppPalette.brand : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -1052,7 +1052,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
           subtitle: 'The highest rated films on TMDB.',
           movies: topRated ?? const <Movie>[],
           icon: Icons.star_border,
-          accent: const Color(0xFFFACC15),
+          accent: AppPalette.brand,
           onTap: _watchMovie,
           onBookmark: _toggleBookmark,
           bookmarkedIds: bookmarkedIds,
@@ -1165,7 +1165,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
           _buildHeroBanner(),
           const SizedBox(height: 26),
           RefreshIndicator(
-            color: AppPalette.goldBright,
+            color: AppPalette.brand,
             backgroundColor: AppPalette.surface,
             onRefresh: _loadHomeRows,
             child: ListView(
@@ -1227,7 +1227,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                   child: Center(
                     child: CircularProgressIndicator(
                       valueColor:
-                          AlwaysStoppedAnimation<Color>(Color(0xFF10D98D)),
+                          AlwaysStoppedAnimation<Color>(AppPalette.brand),
                     ),
                   ),
                 )
@@ -1256,7 +1256,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF10D98D) : const Color(0xFF1B1F31),
+          color: isSelected ? AppPalette.brand : const Color(0xFF1B1F31),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -1759,7 +1759,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Color(0xFF10D98D) : Colors.white10,
+          color: isSelected ? AppPalette.brand : Colors.white10,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -1925,7 +1925,7 @@ class _BrandMark extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: <Color>[AppPalette.brand, AppPalette.brandDark],
+          colors: <Color>[AppPalette.logoGreen, AppPalette.logoGreenDark],
         ),
         borderRadius: BorderRadius.circular(9),
       ),

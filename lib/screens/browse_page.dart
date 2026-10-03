@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:movies/constants/api_constants.dart';
+import 'package:movies/constants/app_theme.dart';
 import 'package:movies/modal_class/movie.dart';
 
 /// A responsive, reusable browse screen for a list of movies.
@@ -27,7 +28,7 @@ class BrowsePage extends StatelessWidget {
     required this.movies,
     required this.icon,
     required this.onTap,
-    this.accent = const Color(0xFF10D98D),
+    this.accent = const Color(0xFFE11D48),
     this.emptyTitle = 'Nothing here yet',
     this.emptyMessage = 'No titles to show.',
     this.onBookmark,
@@ -225,10 +226,11 @@ class _PosterCard extends StatelessWidget {
                                 child: SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
+                                  child: const CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF10D98D)),
+                                      Color(0xFFE11D48),
+                                    ),
                                   ),
                                 ),
                               ),

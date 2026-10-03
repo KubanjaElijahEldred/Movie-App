@@ -106,7 +106,7 @@ class MovieRowCard extends StatelessWidget {
                   children: <Widget>[
                     const Icon(
                       Icons.star,
-                      color: AppPalette.gold,
+                      color: AppPalette.brand,
                       size: 12,
                     ),
                     const SizedBox(width: 3),
@@ -163,7 +163,7 @@ class _BookmarkChip extends StatelessWidget {
           child: Icon(
             isBookmarked ? Icons.bookmark : Icons.bookmark_border,
             size: 16,
-            color: isBookmarked ? AppPalette.gold : Colors.white,
+            color: isBookmarked ? AppPalette.brand : Colors.white,
           ),
         ),
       ),

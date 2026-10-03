@@ -377,7 +377,7 @@ class _DownloadedCard extends StatelessWidget {
                               ? Icons.bookmark
                               : Icons.bookmark_border,
                           tooltip: 'Bookmark',
-                          color: isBookmarked ? AppPalette.gold : null,
+                          color: isBookmarked ? AppPalette.brand : null,
                           onPressed: onBookmark,
                         ),
                       ],
