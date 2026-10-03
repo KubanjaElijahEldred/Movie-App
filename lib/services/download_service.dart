@@ -244,7 +244,12 @@ class DownloadService extends ChangeNotifier {
     return raw.contains('XMLHttpRequest') ||
         raw.contains('NetworkError') ||
         raw.contains('statusCode == 400') ||
-        raw.contains('ClientException');
+        raw.contains('ClientException') ||
+        // The browser refuses a cross-origin body without ever naming CORS,
+        // surfacing only a bare fetch failure. Treat it the same way, otherwise
+        // the UI shows a dead error instead of the direct-link fallback.
+        raw.contains('TypeError') ||
+        raw.contains('Failed to fetch');
   }
 
   /// Stops an in-flight download and throws away the partial file.
