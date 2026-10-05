@@ -45,8 +45,7 @@ class DownloadTask extends ChangeNotifier {
   /// cross-origin read, which is what stops the web build from buffering the
   /// file itself.
   bool get isCrossOriginBlocked =>
-      status == DownloadStatus.failed &&
-      (error ?? '').contains('CORS');
+      status == DownloadStatus.failed && (error ?? '').contains('CORS');
 
   double get progress {
     if (status == DownloadStatus.completed) return 1;
@@ -107,6 +106,13 @@ class DownloadService extends ChangeNotifier {
     if (movieId == null) return null;
     return _tasks[movieId.toString()];
   }
+
+  /// The task for a title that has no TMDB id.
+  ///
+  /// Tasks are keyed by id, falling back to the title's hash, so a catalogue
+  /// entry without an id still resolves to its own task rather than always
+  /// reporting none.
+  DownloadTask? taskForTitle(String title) => _tasks[_key(null, title)];
 
   /// Whether a finished file exists for this title.
   bool isDownloaded(int? movieId) =>
@@ -253,8 +259,12 @@ class DownloadService extends ChangeNotifier {
   }
 
   /// Stops an in-flight download and throws away the partial file.
-  Future<void> cancel(int? movieId) async {
-    final String key = (movieId ?? 0).toString();
+  Future<void> cancel(int? movieId) async => _cancel(_key(movieId, ''));
+
+  /// The same, for a title that carries no TMDB id.
+  Future<void> cancelByTitle(String title) async => _cancel(_key(null, title));
+
+  Future<void> _cancel(String key) async {
     final DownloadTask? task = _tasks[key];
     if (task == null) return;
 

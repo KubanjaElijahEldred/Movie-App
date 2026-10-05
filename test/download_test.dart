@@ -27,21 +27,54 @@ void main() {
       expect(MovieSourceService.openFilms, isNotEmpty);
       for (final OpenFilm film in MovieSourceService.openFilms) {
         expect(film.url, startsWith('https://'), reason: film.title);
-        expect(film.url, endsWith('.mp4'), reason: film.title);
+        expect(film.url, endsWith('.webm'), reason: film.title);
         expect(film.sizeBytes, greaterThan(1 << 20), reason: film.title);
         expect(film.license, isNotEmpty, reason: film.title);
+        // The saved file has to match the source, or the player refuses it.
+        expect(film.fileName, endsWith('.webm'), reason: film.title);
+        expect(film.mimeType, 'video/webm', reason: film.title);
       }
     });
 
-    test('tmdb ids and titles are unique', () {
-      final Set<int> ids = MovieSourceService.openFilms
-          .map((OpenFilm f) => f.tmdbId)
-          .toSet();
+    test('every entry is served from a CORS-readable host', () {
+      // archive.org was the first choice here and had to be dropped: its CDN
+      // redirect omits Access-Control-Allow-Origin, so the browser could play
+      // the file but the app could never read the bytes to save them.
+      for (final OpenFilm film in MovieSourceService.openFilms) {
+        expect(
+          Uri.parse(film.url).host,
+          'upload.wikimedia.org',
+          reason: film.title,
+        );
+      }
+    });
+
+    test('titles are unique and tmdb ids, where present, are too', () {
       final Set<String> titles = MovieSourceService.openFilms
           .map((OpenFilm f) => f.title.toLowerCase())
           .toSet();
-      expect(ids.length, MovieSourceService.openFilms.length);
       expect(titles.length, MovieSourceService.openFilms.length);
+
+      final Set<int> ids = MovieSourceService.openFilms
+          .map((OpenFilm f) => f.tmdbId)
+          .whereType<int>()
+          .toSet();
+      final int withIds = MovieSourceService.openFilms
+          .where((OpenFilm f) => f.tmdbId != null)
+          .length;
+      expect(ids.length, withIds);
+    });
+
+    test('a title with no tmdb id still resolves by name', () async {
+      final MovieSourceService service = MovieSourceService();
+      addTearDown(service.dispose);
+
+      final OpenFilm unlisted = MovieSourceService.openFilms
+          .firstWhere((OpenFilm f) => f.tmdbId == null);
+      expect(
+        (await service.fetchDownloadSource(null, unlisted.title))?.url,
+        unlisted.url,
+      );
     });
 
     test('resolves a downloadable source by id and by title', () async {
@@ -120,7 +153,8 @@ void main() {
       );
       addTearDown(service.dispose);
 
-      final List<WatchProvider> providers = await service.fetchWatchProviders(1);
+      final List<WatchProvider> providers =
+          await service.fetchWatchProviders(1);
       expect(providers.single.type, WatchProviderType.free);
       expect(providers.single.isFree, isTrue);
       expect(providers.single.isPaid, isFalse);
@@ -170,8 +204,8 @@ void main() {
 
     test('returns an empty list when the endpoint fails', () async {
       final MovieSourceService service = MovieSourceService(
-        client: MockClient(
-            (http.Request request) async => http.Response('', 500)),
+        client:
+            MockClient((http.Request request) async => http.Response('', 500)),
       );
       addTearDown(service.dispose);
 
@@ -326,9 +360,9 @@ void main() {
         client: MockClient.streaming(
           (http.BaseRequest request, http.ByteStream body) async =>
               http.StreamedResponse(
-                Stream<List<int>>.value(<int>[9, 9]),
-                200,
-              ),
+            Stream<List<int>>.value(<int>[9, 9]),
+            200,
+          ),
         ),
       );
       addTearDown(service.dispose);
@@ -344,6 +378,44 @@ void main() {
       await service.remove(4);
       expect(service.isDownloaded(4), isFalse);
       expect(service.taskFor(4), isNull);
+    });
+
+    test('a task with no tmdb id is still findable and cancellable', () async {
+      // The catalogue has films TMDB does not list. Their tasks are keyed by
+      // title, so every id-only accessor has to have a title-based twin or the
+      // progress row silently never appears.
+      final StreamController<List<int>> controller =
+          StreamController<List<int>>();
+      addTearDown(controller.close);
+
+      final DownloadService service = DownloadService(
+        client: MockClient.streaming(
+          (http.BaseRequest request, http.ByteStream body) async =>
+              http.StreamedResponse(controller.stream, 200),
+        ),
+      );
+      addTearDown(service.dispose);
+
+      final DownloadTask task = await service.start(
+        movieId: null,
+        title: 'HERO',
+        source: mp4Source,
+      );
+      controller.add(<int>[1, 2, 3]);
+      await _waitFor(() => task.received == 3);
+
+      expect(service.taskForTitle('HERO'), same(task));
+      // Restarting the same title must find the running transfer, not a second.
+      expect(
+        await service.start(movieId: null, title: 'HERO', source: mp4Source),
+        same(task),
+      );
+
+      await service.cancelByTitle('HERO');
+      expect(task.status, DownloadStatus.cancelled);
+
+      // A different title must not collide with it.
+      expect(service.taskForTitle('Spring'), isNull);
     });
 
     test('progress label formats bytes', () {

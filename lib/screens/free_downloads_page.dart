@@ -198,12 +198,25 @@ class _FilmRow extends StatelessWidget {
   final DownloadService downloadService;
   final VoidCallback onDownload;
 
+  /// Cancels by id when there is one, by title when there is not. Tasks are
+  /// keyed the same way in `DownloadService`, so both paths reach the transfer
+  /// that is actually running.
+  static void _cancel(DownloadService service, OpenFilm film) {
+    if (film.tmdbId != null) {
+      service.cancel(film.tmdbId);
+    } else {
+      service.cancelByTitle(film.title);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: downloadService,
       builder: (BuildContext context, Widget? child) {
-        final DownloadTask? task = downloadService.taskFor(film.tmdbId);
+        final DownloadTask? task = film.tmdbId != null
+            ? downloadService.taskFor(film.tmdbId)
+            : downloadService.taskForTitle(film.title);
         final bool active = task?.status == DownloadStatus.downloading ||
             task?.status == DownloadStatus.queued;
         final bool done = task?.status == DownloadStatus.completed;
@@ -318,7 +331,7 @@ class _FilmRow extends StatelessWidget {
                       label: 'Cancel',
                       icon: Icons.close,
                       filled: false,
-                      onPressed: () => downloadService.cancel(film.tmdbId),
+                      onPressed: () => _cancel(downloadService, film),
                     ),
                   ],
                 ],
