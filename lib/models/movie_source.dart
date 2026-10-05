@@ -27,7 +27,8 @@ class WatchProvider {
   final bool isFree;
 
   /// Whether the title has to be paid for before it can be watched.
-  bool get isPaid => type == WatchProviderType.rent || type == WatchProviderType.buy;
+  bool get isPaid =>
+      type == WatchProviderType.rent || type == WatchProviderType.buy;
 }
 
 /// What a provider offers for a given title.
@@ -88,7 +89,11 @@ class OpenFilm {
   });
 
   /// TMDB listing, so a catalogue card can deep-link to the title.
-  final int tmdbId;
+  ///
+  /// Null when TMDB has no entry for the film. Matching in
+  /// `MovieSourceService` falls back to the title in that case, so a missing id
+  /// costs the deep link and nothing else.
+  final int? tmdbId;
 
   final String title;
   final String year;

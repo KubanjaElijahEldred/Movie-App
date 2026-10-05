@@ -43,41 +43,132 @@ class MovieSourceService {
     // Served from Wikimedia Commons rather than archive.org: archive.org
     // redirects to a CDN that omits Access-Control-Allow-Origin, so a browser
     // can play the file but the app can never read the bytes to save them.
-    // Commons answers `Access-Control-Allow-Origin: *` on the file itself, so
-    // the in-page download actually completes.
+    //
+    // Commons answers `access-control-allow-origin: *` on the file itself, which
+    // is what makes the in-page save work. Sizes are the real content-length
+    // values, so the progress bar is honest before the first chunk lands.
+    //
+    // Every entry is a complete short published by its creator under a licence
+    // that permits redistribution. Blender's open movies are CC BY, which is
+    // why this list exists at all: it is the only content the app may hand a
+    // user as a file. Commercial titles resolve to watch providers instead.
     OpenFilm(
-      tmdbId: 86644,
+      tmdbId: 10378,
       title: 'Big Buck Bunny',
       year: '2008',
       runtime: '9 min',
       url: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/'
           'Big_buck_bunny_720p_5mb.webm',
-      fileName: 'Big_Buck_Bunny_720p.webm',
+      fileName: 'Big_Buck_Bunny.webm',
       sizeBytes: 5709008,
       mimeType: 'video/webm',
-      license: 'CC BY 3.0 — Blender Foundation',
+      license: 'CC BY-SA 4.0 — Blender Foundation',
     ),
     OpenFilm(
-      tmdbId: 531428,
+      tmdbId: 253774,
+      title: 'Caminandes: Gran Dillama',
+      year: '2013',
+      runtime: '2 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/8/8b/'
+          'Caminandes%2C_Gran_Dillama_-_Blender_Foundation.webm',
+      fileName: 'Caminandes_Gran_Dillama.webm',
+      sizeBytes: 68626328,
+      mimeType: 'video/webm',
+      license: 'CC BY-SA 3.0 — Blender Foundation',
+    ),
+    OpenFilm(
+      tmdbId: 1062079,
+      title: 'Charge',
+      year: '2022',
+      runtime: '2 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/7/7a/'
+          'Charge_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'Charge.webm',
+      sizeBytes: 223478979,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: 908389,
+      title: 'Coffee Run',
+      year: '2020',
+      runtime: '3 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/3/3f/'
+          'Coffee_Run_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'Coffee_Run.webm',
+      sizeBytes: 29260881,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: 738102,
+      title: 'Glass Half',
+      year: '2020',
+      runtime: '3 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/0/02/'
+          'Glass_Half_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'Glass_Half.webm',
+      sizeBytes: 175136749,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: null,
+      title: 'HERO',
+      year: '2016',
+      runtime: '4 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/'
+          'HERO_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'HERO.webm',
+      sizeBytes: 60475168,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: 593048,
       title: 'Spring',
       year: '2019',
       runtime: '8 min',
       url: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/'
           'Spring_-_Blender_Open_Movie.webm',
-      fileName: 'Spring_Open_Movie.webm',
+      fileName: 'Spring.webm',
       sizeBytes: 81781205,
       mimeType: 'video/webm',
       license: 'CC BY 4.0 — Blender Studio',
     ),
     OpenFilm(
-      tmdbId: 653734,
+      tmdbId: 891761,
       title: 'Sprite Fright',
       year: '2022',
       runtime: '5 min',
       url: 'https://upload.wikimedia.org/wikipedia/commons/7/76/'
           'Sprite_Fright_-_Blender_Open_Movie-full_movie.webm',
-      fileName: 'Sprite_Fright_1080p.webm',
+      fileName: 'Sprite_Fright.webm',
       sizeBytes: 158621642,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: 498482,
+      title: 'The Daily Dweebs',
+      year: '2020',
+      runtime: '7 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/b/b2/'
+          'The_Daily_Dweebs_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'The_Daily_Dweebs.webm',
+      sizeBytes: 147627996,
+      mimeType: 'video/webm',
+      license: 'CC BY 4.0 — Blender Studio',
+    ),
+    OpenFilm(
+      tmdbId: 1177628,
+      title: 'WING IT!',
+      year: '2023',
+      runtime: '3 min',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/3/38/'
+          'WING_IT%21_-_Blender_Open_Movie-full_movie.webm',
+      fileName: 'WING_IT!.webm',
+      sizeBytes: 36196718,
       mimeType: 'video/webm',
       license: 'CC BY 4.0 — Blender Studio',
     ),
@@ -193,7 +284,9 @@ class MovieSourceService {
     String? title,
   ) async {
     for (final OpenFilm film in openFilms) {
-      if (tmdbId != null && film.tmdbId == tmdbId) return film.source;
+      if (tmdbId != null && film.tmdbId != null && film.tmdbId == tmdbId) {
+        return film.source;
+      }
     }
     if (title != null) {
       final String needle = title.trim().toLowerCase();

@@ -11,6 +11,12 @@
 //   * App shell and Flutter runtime  -> cache first, refreshed in the
 //     background. These are immutable per build because the service worker
 //     version below changes whenever a deploy happens.
+//   * main.dart.js                   -> not intercepted at all. It is ~2.9 MB
+//     and the CDN already serves it `immutable` for a year, so the browser HTTP
+//     cache handles it correctly. Caching it here instead pinned one copy per
+//     origin under a name that never changed, which kept returning visitors on
+//     stale code and made a dropped connection serve the interrupted copy again
+//     on every retry.
 //   * Navigations                    -> network first, falling back to the
 //     cached shell so a cold offline launch still opens.
 //   * TMDB API                       -> network first with a cache fallback.
@@ -19,9 +25,12 @@
 //   * TMDB images                    -> cache first, since poster art is
 //     immutable per path and these dominate repeat-viewing data use.
 
-const SHELL_CACHE = 'playit-shell-v3';
-const API_CACHE = 'playit-api-v3';
-const IMAGE_CACHE = 'playit-images-v3';
+const SHELL_CACHE = 'playit-shell-v4';
+const API_CACHE = 'playit-api-v4';
+const IMAGE_CACHE = 'playit-images-v4';
+
+// The compiled Dart bundle. Left to the browser's own HTTP cache on purpose.
+const BYPASSED = ['/main.dart.js'];
 
 const SHELL_ASSETS = [
   './',
@@ -94,6 +103,10 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
+  // Large per-build artefacts stay out of Cache Storage. See the note at the
+  // top: an interrupted fetch here used to be pinned and replayed forever.
+  if (BYPASSED.some((path) => url.pathname.endsWith(path))) return;
 
   event.respondWith(cacheFirst(request, SHELL_CACHE));
 });

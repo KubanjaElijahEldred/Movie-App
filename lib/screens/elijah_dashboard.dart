@@ -13,6 +13,7 @@ import 'package:movies/screens/browse_page.dart';
 import 'package:movies/screens/coming_soon_page.dart';
 import 'package:movies/screens/downloaded_page.dart';
 import 'package:movies/screens/favorites_page.dart';
+import 'package:movies/screens/free_downloads_page.dart';
 import 'package:movies/screens/home_sections.dart';
 import 'package:movies/screens/login.dart';
 import 'package:movies/screens/movie_detail.dart';
@@ -275,6 +276,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       }
     });
   }
+
   // Toggle watchlist
   void _toggleWatchlist(Movie movie) {
     setState(() {
@@ -471,6 +473,19 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         );
         return;
 
+      case 'Free downloads':
+        // A shelf of films the app may genuinely save to the device, so the
+        // Downloaded page is reachable from somewhere with content in it.
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FreeDownloadsPage(
+              downloadService: _downloadService,
+            ),
+          ),
+        );
+        return;
+
       case 'Settings':
         await Navigator.push(
             context, MaterialPageRoute(builder: (_) => SettingsPage()));
@@ -659,7 +674,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   /// from the sidebar is unreachable without a drawer.
   Widget _buildBottomNavBar() {
     final int selected = _navDestinations.indexWhere(
-      (({String page, IconData icon, IconData activeIcon}) d) => d.page == currentPage,
+      (({String page, IconData icon, IconData activeIcon}) d) =>
+          d.page == currentPage,
     );
 
     return Container(
@@ -707,6 +723,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         'Recent',
         'Top rated',
         'Coming soon',
+        'Free downloads',
         'Settings',
         'Help',
         'Logout',
@@ -719,6 +736,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     (page: 'Recent', icon: Icons.access_time),
     (page: 'Top rated', icon: Icons.star_border),
     (page: 'Coming soon', icon: Icons.calendar_today_outlined),
+    (page: 'Free downloads', icon: Icons.download_for_offline_outlined),
     (page: 'Settings', icon: Icons.settings_outlined),
     (page: 'Help', icon: Icons.help_outline),
     (page: 'Logout', icon: Icons.logout),
@@ -750,7 +768,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                     ),
                   ),
                 ),
-                for (final ({String page, IconData icon}) d in _moreDestinations)
+                for (final ({String page, IconData icon}) d
+                    in _moreDestinations)
                   ListTile(
                     leading: Icon(
                       d.icon,
@@ -1441,8 +1460,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   }
 
   Widget _buildHeroSlide(Movie movie) {
-    final String? backdrop =
-        tmdbImageUrl(movie.backdropPath, size: 'original');
+    final String? backdrop = tmdbImageUrl(movie.backdropPath, size: 'original');
     // A poster is 2:3, so stretching one across a 16:9 banner would distort
     // it badly. It is only used when there is no backdrop at all.
     final String? poster = tmdbImageUrl(movie.posterPath, size: 'w780');
@@ -1468,7 +1486,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                 BuildContext context,
                 Object error,
                 StackTrace? stack,
-              ) => Container(color: AppPalette.surface),
+              ) =>
+                  Container(color: AppPalette.surface),
               loadingBuilder: (
                 BuildContext context,
                 Widget child,
@@ -1509,9 +1528,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
                     _HeroChip(
                       label: isBookmarked ? 'Bookmarked' : 'Save',
                       color: Colors.white24,
-                      icon: isBookmarked
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
+                      icon:
+                          isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                       onTap: () => _toggleBookmark(movie),
                     ),
                   ],
@@ -1963,7 +1981,8 @@ class _NavButton extends StatelessWidget {
             children: <Widget>[
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppPalette.brand.withValues(alpha: 0.16)
