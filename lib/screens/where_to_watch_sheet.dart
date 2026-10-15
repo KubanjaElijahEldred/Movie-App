@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:movies/constants/app_theme.dart';
 import 'package:movies/models/movie_source.dart';
+import 'package:movies/services/auth_gate.dart';
 import 'package:movies/services/download_service.dart';
 import 'package:movies/services/movie_source_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -106,6 +107,10 @@ class _WhereToWatchSheetState extends State<WhereToWatchSheet> {
   Future<void> _startDownload() async {
     final DownloadSource? source = _download;
     if (source == null) return;
+
+    // A download needs an account, so a guest is sent to sign in first.
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted) return;
 
     // The messenger is captured before the pop: afterwards this State's context
     // is defunct and showing a SnackBar through it would throw.

@@ -21,6 +21,12 @@ class BrowsePage extends StatelessWidget {
   final void Function(Movie movie)? onBookmark;
   final List<int> bookmarkedIds;
 
+  /// When supplied, the grid becomes paged: reaching the bottom asks for the
+  /// next batch, and a "Load more" button offers the same on demand.
+  final Future<void> Function()? onLoadMore;
+  final bool hasMore;
+  final bool isLoadingMore;
+
   const BrowsePage({
     Key? key,
     required this.title,
@@ -33,6 +39,9 @@ class BrowsePage extends StatelessWidget {
     this.emptyMessage = 'No titles to show.',
     this.onBookmark,
     this.bookmarkedIds = const [],
+    this.onLoadMore,
+    this.hasMore = false,
+    this.isLoadingMore = false,
   }) : super(key: key);
 
   /// Keeps cards a sensible size on very wide screens instead of stretching
@@ -56,7 +65,7 @@ class BrowsePage extends StatelessWidget {
             ? 16
             : (constraints.maxWidth < 1000 ? 24 : 32);
 
-        return SingleChildScrollView(
+        final Widget content = SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             24,
@@ -75,12 +84,65 @@ class BrowsePage extends StatelessWidget {
                     _buildEmpty(context)
                   else
                     _buildGrid(context, columns),
+                  _buildFooter(),
                 ],
               ),
             ),
           ),
         );
+
+        if (onLoadMore == null) return content;
+        return NotificationListener<ScrollNotification>(
+          onNotification: (ScrollNotification notification) {
+            if (hasMore &&
+                !isLoadingMore &&
+                notification.metrics.extentAfter < 400) {
+              onLoadMore!();
+            }
+            return false;
+          },
+          child: content,
+        );
       },
+    );
+  }
+
+  /// The paging footer: a spinner while a batch is loading, a button to fetch
+  /// the next one, or nothing once the collection is exhausted.
+  Widget _buildFooter() {
+    if (onLoadMore == null || movies.isEmpty) return const SizedBox.shrink();
+    if (isLoadingMore) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 28),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+        ),
+      );
+    }
+    if (!hasMore) return const SizedBox(height: 8);
+    return Padding(
+      padding: const EdgeInsets.only(top: 28),
+      child: Center(
+        child: OutlinedButton.icon(
+          onPressed: onLoadMore,
+          icon: Icon(Icons.expand_more, color: accent),
+          label: Text(
+            'Load more',
+            style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: accent.withValues(alpha: 0.5)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+        ),
+      ),
     );
   }
 

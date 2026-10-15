@@ -10,16 +10,19 @@ import 'package:movies/modal_class/genres.dart';
 import 'package:movies/modal_class/movie.dart';
 import 'package:movies/modal_class/video.dart';
 import 'package:movies/screens/browse_page.dart';
+import 'package:movies/screens/category_page.dart';
 import 'package:movies/screens/coming_soon_page.dart';
 import 'package:movies/screens/downloaded_page.dart';
 import 'package:movies/screens/favorites_page.dart';
 import 'package:movies/screens/free_downloads_page.dart';
 import 'package:movies/screens/home_sections.dart';
-import 'package:movies/screens/login.dart';
 import 'package:movies/screens/movie_detail.dart';
 import 'package:movies/screens/settings_page.dart';
 import 'package:movies/screens/support_page.dart';
 import 'package:movies/screens/trailer_player.dart';
+import 'package:movies/services/auth_gate.dart';
+import 'package:movies/services/auth_service.dart';
+import 'package:provider/provider.dart';
 
 class ElijahDashboard extends StatefulWidget {
   @override
@@ -43,7 +46,9 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   List<Movie>? popular;
   List<Movie>? recommended;
   List<Genres> genres = [];
-  List<int> bookmarkedIds = []; // Track bookmarked movie IDs
+  /// The bookmarked ids for the current user (or guest), owned by
+  /// [AuthService] so they persist across restarts and follow the account.
+  List<int> get bookmarkedIds => context.read<AuthService>().bookmarkedIds;
   List<int> watchlistIds = []; // Track watchlist movie IDs
   bool isLoading = true;
   bool isLoadingGenre = false;
@@ -81,27 +86,87 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   final Map<String, List<Movie>> genreRows = <String, List<Movie>>{};
   bool isLoadingRows = true;
 
-  /// The genre rows on the home page, in display order.
-  ///
-  /// Series pulls from the TV endpoints because a genre list of films would
-  /// not be a series row.
-  static const List<_GenreRow> _homeRows = <_GenreRow>[
+  /// True for the top filters whose catalogue comes from the TV endpoints:
+  /// Series, TV Show, and Anime. Movies use the movie endpoints.
+  bool get _isTvFilter =>
+      selectedTab == 'Series' ||
+      selectedTab == 'TV Show' ||
+      selectedTab == 'Anime';
+
+  /// The genre rows for the Movie filter.
+  static const List<_GenreRow> _movieRows = <_GenreRow>[
     _GenreRow('Action', 28, Icons.local_fire_department_outlined),
     _GenreRow('Adventure', 12, Icons.explore_outlined),
     _GenreRow('Sci-Fi', 878, Icons.rocket_launch_outlined),
     _GenreRow('Drama', 18, Icons.theater_comedy_outlined),
     _GenreRow('Horror', 27, Icons.dark_mode_outlined),
     _GenreRow('Thriller', 53, Icons.bolt_outlined),
-    _GenreRow('Series', 0, Icons.live_tv_outlined, isSeries: true),
   ];
+
+  /// The genre rows for the Series and TV Show filters. TV genre ids differ
+  /// from the movie ones, so these cannot be reused for films.
+  static const List<_GenreRow> _seriesRows = <_GenreRow>[
+    _GenreRow('Action & Adventure', 10759, Icons.local_fire_department_outlined),
+    _GenreRow('Comedy', 35, Icons.theater_comedy_outlined),
+    _GenreRow('Drama', 18, Icons.movie_filter_outlined),
+    _GenreRow('Mystery', 9648, Icons.search_outlined),
+    _GenreRow('Sci-Fi & Fantasy', 10765, Icons.rocket_launch_outlined),
+    _GenreRow('Reality', 10764, Icons.live_tv_outlined),
+  ];
+
+  /// The genre rows for the Anime filter, using TV genre ids.
+  static const List<_GenreRow> _animeRows = <_GenreRow>[
+    _GenreRow('Action & Adventure', 10759, Icons.local_fire_department_outlined),
+    _GenreRow('Comedy', 35, Icons.theater_comedy_outlined),
+    _GenreRow('Sci-Fi & Fantasy', 10765, Icons.rocket_launch_outlined),
+    _GenreRow('Drama', 18, Icons.movie_filter_outlined),
+    _GenreRow('Mystery', 9648, Icons.search_outlined),
+  ];
+
+  /// The home-page genre rows for the current top filter, in display order.
+  List<_GenreRow> get _homeRows {
+    if (selectedTab == 'Anime') return _animeRows;
+    if (_isTvFilter) return _seriesRows;
+    return _movieRows;
+  }
+
+  /// The "recent"-style row that tops the home page for the current filter.
+  String get _recentRowTitle {
+    if (selectedTab == 'Anime') return 'Trending anime';
+    if (_isTvFilter) return 'Airing now';
+    return 'Recent movies';
+  }
+
+  /// Source URL for the recent row at [page], matching the current top filter.
+  String _recentUrl(int page) {
+    if (selectedTab == 'Anime') return Endpoints.discoverAnimeUrl(page);
+    if (_isTvFilter) return Endpoints.airingTodayTVUrl(page);
+    return Endpoints.nowPlayingMoviesUrl(page);
+  }
+
+  /// Source URL for one genre at [page] under the current top filter.
+  String _genreUrl(int genreId, [int page = 1]) {
+    if (selectedTab == 'Anime') return Endpoints.getAnimeForGenre(genreId, page);
+    if (_isTvFilter) return Endpoints.getTVForGenre(genreId, page);
+    return Endpoints.getMoviesForGenre(genreId, page);
+  }
+
+  /// Source URL for one home-page genre row at [page] under the current filter.
+  String _rowUrl(_GenreRow row, [int page = 1]) =>
+      _genreUrl(row.genreId, page);
 
   /// How many titles each row keeps. TMDB returns 20 per page, so every row
   /// shows well over ten.
   static const int _moviesPerRow = 14;
 
-  /// The movies the user has actually bookmarked, resolved from every list the
-  /// dashboard has loaded so the Bookmarked page shows real titles.
-  List<Movie> get bookmarkedMovies {
+  /// Every title the dashboard has loaded, keyed by TMDB id.
+  ///
+  /// The home genre rows live in [genreRows] rather than a single list, and
+  /// titles opened from those rows (Series especially, which come from the TV
+  /// feed and share no ids with the movie lists) are not part of any other
+  /// feed. They have to be folded in here, or the Bookmarked and Downloaded
+  /// pages cannot resolve such a title back to a [Movie] and silently drop it.
+  Map<int, Movie> get _moviesById {
     final Map<int, Movie> byId = <int, Movie>{};
     for (final List<Movie>? list in <List<Movie>?>[
       trendingMovies,
@@ -110,15 +175,29 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       recommended,
       continueWatching,
       recentDownloads,
+      bookmarked,
+      searchResults,
       genreMovies,
+      heroMovies,
+      recentMovies,
+      ...genreRows.values,
     ]) {
-      if (list == null) continue;
-      for (final Movie movie in list) {
+      for (final Movie movie in list ?? const <Movie>[]) {
         final int? id = movie.id;
-        if (id != null && bookmarkedIds.contains(id)) byId[id] = movie;
+        if (id != null) byId[id] = movie;
       }
     }
-    return byId.values.toList();
+    return byId;
+  }
+
+  /// The movies the user has actually bookmarked, resolved from every list the
+  /// dashboard has loaded so the Bookmarked page shows real titles.
+  List<Movie> get bookmarkedMovies {
+    final Map<int, Movie> byId = _moviesById;
+    return <Movie>[
+      for (final int id in bookmarkedIds)
+        if (byId[id] != null) byId[id]!,
+    ];
   }
 
   @override
@@ -178,29 +257,29 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     setState(() => isLoading = true);
 
     try {
-      final genresList = await fetchGenres();
-      List<Movie> trending;
-      List<Movie> rated;
-      List<Movie> popular;
+      final bool tv = _isTvFilter;
+      final bool anime = selectedTab == 'Anime';
+      final genresList = tv ? await fetchTVGenres() : await fetchGenres();
 
-      // Load different content based on selected tab
-      if (selectedTab == 'Series' || selectedTab == 'TV Shows') {
-        // For TV shows, we'll use movie API temporarily
-        // In production, you'd use TV-specific endpoints
-        trending = await fetchMovies(Endpoints.discoverMoviesUrl(1));
-        rated = await fetchMovies(Endpoints.topRatedUrl(1));
-        popular = await fetchMovies(Endpoints.popularMoviesUrl(1));
-      } else {
-        trending = await fetchMovies(Endpoints.discoverMoviesUrl(1));
-        rated = await fetchMovies(Endpoints.topRatedUrl(1));
-        popular = await fetchMovies(Endpoints.popularMoviesUrl(1));
-      }
+      final String trendingUrl = anime
+          ? Endpoints.discoverAnimeUrl(1)
+          : tv
+              ? Endpoints.discoverTVUrl(1)
+              : Endpoints.discoverMoviesUrl(1);
+      final String ratedUrl =
+          tv ? Endpoints.topRatedTVUrl(1) : Endpoints.topRatedUrl(1);
+      final String popularUrl =
+          tv ? Endpoints.popularTVUrl(1) : Endpoints.popularMoviesUrl(1);
 
-      // The banner rotates through the seven newest releases, so it wants
-      // "now playing" rather than the popularity-sorted trending feed.
-      List<Movie> nowPlaying = const <Movie>[];
+      final List<Movie> trending = await fetchMovies(trendingUrl);
+      final List<Movie> rated = await fetchMovies(ratedUrl);
+      final List<Movie> popular = await fetchMovies(popularUrl);
+
+      // The banner rotates through the newest releases for the current filter,
+      // "recent" meaning now playing, airing today, or trending anime.
+      List<Movie> recent = const <Movie>[];
       try {
-        nowPlaying = await fetchMovies(Endpoints.nowPlayingMoviesUrl(1));
+        recent = await fetchMovies(_recentUrl(1));
       } catch (_) {
         // Not fatal: the banner falls back to trending below.
       }
@@ -208,7 +287,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
       setState(() {
         genres = genresList.genres ?? [];
         trendingMovies = trending;
-        heroMovies = _pickHeroSlides(nowPlaying, trending);
+        heroMovies = _pickHeroSlides(recent, trending);
         topRated = rated;
         // Safe to call inside setState: the timer only touches the controller
         // once the frame is built.
@@ -216,8 +295,11 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         continueWatching = trending.take(4).toList();
         recentDownloads = popular.take(10).toList();
         bookmarked = rated.take(4).toList();
-        this.popular = rated.take(3).toList();
-        this.recommended = popular.take(3).toList();
+        // The right sidebar is about what is current, so it draws from the
+        // recent feeds rather than the all-time popular/top rated lists.
+        final List<Movie> recentFeed = recent.isNotEmpty ? recent : trending;
+        this.popular = trending.take(3).toList();
+        this.recommended = recentFeed.take(3).toList();
         isLoading = false;
       });
     } catch (e) {
@@ -265,26 +347,33 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   }
 
   // Toggle bookmark
-  void _toggleBookmark(Movie movie) {
-    setState(() {
-      if (bookmarkedIds.contains(movie.id)) {
-        bookmarkedIds.remove(movie.id);
-        _showSnackBar('Removed from bookmarks', Icons.bookmark_remove);
-      } else {
-        bookmarkedIds.add(movie.id!);
-        _showSnackBar('Added to bookmarks', Icons.bookmark_added);
-      }
-    });
+  //
+  // The bookmark itself lives in AuthService so it is saved against the signed
+  // in account; this only relays the result to the user and refreshes the row.
+  Future<void> _toggleBookmark(Movie movie) async {
+    final int? id = movie.id;
+    // Without an id there is nothing stable to store, so ignore the tap rather
+    // than crash on a null check.
+    if (id == null) return;
+    final bool added = await context.read<AuthService>().toggleBookmark(id);
+    if (!mounted) return;
+    setState(() {});
+    _showSnackBar(
+      added ? 'Added to bookmarks' : 'Removed from bookmarks',
+      added ? Icons.bookmark_added : Icons.bookmark_remove,
+    );
   }
 
   // Toggle watchlist
   void _toggleWatchlist(Movie movie) {
+    final int? id = movie.id;
+    if (id == null) return;
     setState(() {
-      if (watchlistIds.contains(movie.id)) {
-        watchlistIds.remove(movie.id);
+      if (watchlistIds.contains(id)) {
+        watchlistIds.remove(id);
         _showSnackBar('Removed from watchlist', Icons.remove_circle);
       } else {
-        watchlistIds.add(movie.id!);
+        watchlistIds.add(id);
         _showSnackBar('Added to watchlist', Icons.add_circle);
       }
     });
@@ -293,23 +382,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   /// Titles with a finished download on disk, resolved from every list the
   /// dashboard has loaded so the Downloaded page shows real files.
   List<Movie> get _downloadedMovies {
-    final Map<int, Movie> byId = <int, Movie>{};
-    for (final List<Movie>? list in <List<Movie>?>[
-      trendingMovies,
-      topRated,
-      popular,
-      recommended,
-      continueWatching,
-      recentDownloads,
-      genreMovies,
-      heroMovies,
-    ]) {
-      for (final Movie movie in list ?? const <Movie>[]) {
-        if (movie.id != null) byId[movie.id!] = movie;
-      }
-    }
-
-    return byId.entries
+    return _moviesById.entries
         .where((MapEntry<int, Movie> entry) =>
             _downloadService.isDownloaded(entry.key))
         .map((MapEntry<int, Movie> entry) => entry.value)
@@ -357,16 +430,32 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         : DecorationImage(image: NetworkImage(url), fit: BoxFit.cover);
   }
 
-  // Search movies
+  /// True for a title TMDB reports as Japanese animation. The app treats these
+  /// as anime so they can be pulled out of the general series results.
+  bool _isAnime(Movie movie) =>
+      movie.originalLanguage == 'ja' && (movie.genreIds?.contains(16) ?? false);
+
+  /// Searches the catalogue for the current top filter, so a Movie search never
+  /// returns series and an Anime search never returns live-action TV. TMDB's TV
+  /// search has no language or genre filter, so anime is separated from the rest
+  /// of the TV results locally.
   Future<void> _searchMovies(String query) async {
-    if (query.trim().isEmpty) {
+    final String trimmed = query.trim();
+    if (trimmed.isEmpty) {
       _clearSearch();
       return;
     }
 
     try {
-      final List<Movie> results =
-          await fetchMovies(Endpoints.movieSearchUrl(query.trim()));
+      List<Movie> results;
+      if (!_isTvFilter) {
+        results = await fetchMovies(Endpoints.movieSearchUrl(trimmed));
+      } else {
+        final List<Movie> tv = await fetchMovies(Endpoints.tvSearchUrl(trimmed));
+        final bool wantAnime = selectedTab == 'Anime';
+        results =
+            tv.where((Movie m) => _isAnime(m) == wantAnime).toList();
+      }
       if (!mounted) return;
       setState(() => searchResults = results);
     } catch (e) {
@@ -383,6 +472,31 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     setState(() => searchResults = null);
   }
 
+  /// Opens the paged "view more" screen for a home row. [urlBuilder] exposes the
+  /// same feed the row is built from, so the fuller view is a continuation of
+  /// that row rather than an unrelated list.
+  void _openCategory({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required MoviePageUrlBuilder urlBuilder,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryPage(
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          urlBuilder: urlBuilder,
+          onTap: _watchMovie,
+          onBookmark: _toggleBookmark,
+          bookmarkedIds: () => bookmarkedIds,
+        ),
+      ),
+    );
+  }
+
   /// Fetches a list, turning a failure into an empty list so one bad genre
   /// request cannot empty every row on the home page.
   Future<List<Movie>> _safeFetch(String url) async {
@@ -393,20 +507,17 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     }
   }
 
-  /// Loads the Recent movies row and every genre row in parallel, so the home
-  /// page paints its sections as one block instead of eight separate spinners.
+  /// Loads the recent row and every genre row in parallel, so the home page
+  /// paints its sections as one block instead of eight separate spinners. The
+  /// rows follow the current top filter (movies, series, TV, or anime).
   Future<void> _loadHomeRows() async {
     if (mounted) setState(() => isLoadingRows = true);
 
+    final List<_GenreRow> rows = _homeRows;
     final List<List<Movie>> results = await Future.wait<List<Movie>>(
       <Future<List<Movie>>>[
-        _safeFetch(Endpoints.nowPlayingMoviesUrl(1)),
-        for (final _GenreRow row in _homeRows)
-          _safeFetch(
-            row.isSeries
-                ? Endpoints.popularTVUrl(1)
-                : Endpoints.getMoviesForGenre(row.genreId, 1),
-          ),
+        _safeFetch(_recentUrl(1)),
+        for (final _GenreRow row in rows) _safeFetch(_rowUrl(row)),
       ],
     );
     if (!mounted) return;
@@ -414,10 +525,10 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     setState(() {
       recentMovies = results.first.take(_moviesPerRow).toList();
       genreRows.clear();
-      for (int i = 0; i < _homeRows.length; i++) {
+      for (int i = 0; i < rows.length; i++) {
         final List<Movie> movies = results[i + 1];
         if (movies.isEmpty) continue;
-        genreRows[_homeRows[i].label] = movies.take(_moviesPerRow).toList();
+        genreRows[rows[i].label] = movies.take(_moviesPerRow).toList();
       }
       isLoadingRows = false;
     });
@@ -437,8 +548,7 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         orElse: () => Genres(id: 28, name: 'Action'), // Default to Action
       );
 
-      final filtered =
-          await fetchMovies(Endpoints.getMoviesForGenre(genre.id!, 1));
+      final filtered = await fetchMovies(_genreUrl(genre.id!));
       setState(() {
         trendingMovies = filtered;
         isLoading = false;
@@ -508,14 +618,10 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
 
       case 'Logout':
         final bool confirmed = await _confirmLogout();
-        if (confirmed && mounted) {
-          await Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-                builder: (_) => LoginScreen(themeData: Theme.of(context))),
-            (Route<dynamic> route) => false,
-          );
-        }
+        if (!confirmed || !mounted) return;
+        await context.read<AuthService>().signOut();
+        if (!mounted) return;
+        _showSnackBar('Signed out', Icons.logout);
         return;
 
       default:
@@ -538,7 +644,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: const Text('Log out?', style: TextStyle(color: Colors.white)),
           content: const Text(
-            'You will be returned to the sign in screen.',
+            'You can keep browsing, but downloads and ratings will need an '
+            'account again.',
             style: TextStyle(color: Colors.white70),
           ),
           actions: <Widget>[
@@ -571,10 +678,12 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     try {
       final Genres genre = genres.firstWhere(
         (Genres g) => g.name == genreName,
-        orElse: () => Genres(id: 28, name: 'Action'),
+        orElse: () => Genres(
+          id: _isTvFilter ? 10759 : 28,
+          name: _isTvFilter ? 'Action & Adventure' : 'Action',
+        ),
       );
-      final List<Movie> filtered =
-          await fetchMovies(Endpoints.getMoviesForGenre(genre.id!, 1));
+      final List<Movie> filtered = await fetchMovies(_genreUrl(genre.id!));
       if (!mounted) return;
       setState(() {
         genreMovies = filtered;
@@ -600,6 +709,9 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to auth changes so bookmarks (owned by AuthService) redraw when
+    // they load for a user, and so a sign in or out refreshes the whole shell.
+    context.watch<AuthService>();
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool isNarrow = constraints.maxWidth < _drawerBreakpoint;
@@ -1134,8 +1246,8 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
           child: BrowsePage(
             title: 'Search',
             subtitle: searchController.text.isEmpty
-                ? 'Showing all titles.'
-                : 'Matches for "${searchController.text}".',
+                ? 'Showing all ${selectedTab.toLowerCase()} titles.'
+                : '$selectedTab matches for "${searchController.text}".',
             movies: results,
             icon: Icons.search,
             emptyTitle: 'No matches found',
@@ -1156,13 +1268,19 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   Widget _buildHomePage(bool showRightSidebar) {
     final List<Widget> sections = <Widget>[
       MovieRowSection(
-        title: 'Recent movies',
+        title: _recentRowTitle,
         icon: Icons.new_releases_outlined,
         movies: recentMovies,
         isLoading: isLoadingRows,
         bookmarkedIds: bookmarkedIds,
         onTap: _watchMovie,
         onBookmark: _toggleBookmark,
+        onViewMore: () => _openCategory(
+          title: _recentRowTitle,
+          subtitle: 'More ${_recentRowTitle.toLowerCase()}.',
+          icon: Icons.new_releases_outlined,
+          urlBuilder: _recentUrl,
+        ),
       ),
       for (final _GenreRow row in _homeRows)
         MovieRowSection(
@@ -1173,6 +1291,14 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
           bookmarkedIds: bookmarkedIds,
           onTap: _watchMovie,
           onBookmark: _toggleBookmark,
+          onViewMore: () => _openCategory(
+            title: row.label,
+            subtitle: _isTvFilter
+                ? 'More $row.label series and shows.'
+                : 'More $row.label movies.',
+            icon: row.icon,
+            urlBuilder: (int page) => _rowUrl(row, page),
+          ),
         ),
     ];
 
@@ -1310,14 +1436,16 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
         );
 
         final Widget search = _buildSearchField(compact ? 180.0 : 250.0);
-        final Widget avatar = InkWell(
-          onTap: () => _navigateToPage('Settings'),
-          child: CircleAvatar(
-            radius: 20,
-            backgroundImage: NetworkImage(
-                TMDB_BASE_IMAGE_URL + 'w185/aIecrmmYpqnyCWQArAueqD60qok.jpg'),
-          ),
-        );
+        // Signed-out visitors get a sign in button where the profile avatar
+        // would sit; it swaps back to the avatar as soon as they have an
+        // account (AuthService notifies, so the bar rebuilds itself).
+        final AuthService auth = context.watch<AuthService>();
+        final Widget avatar = auth.isLoggedIn
+            ? InkWell(
+                onTap: () => _navigateToPage('Settings'),
+                child: _buildUserAvatar(auth),
+              )
+            : _buildSignInButton();
 
         return Container(
           padding:
@@ -1351,6 +1479,50 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     );
   }
 
+  /// The signed in user's avatar: their profile photo when the provider gave
+  /// one, otherwise the first letter of their email on a brand coloured disc.
+  Widget _buildUserAvatar(AuthService auth) {
+    final String? photo = auth.photoUrl;
+    if (photo != null && photo.isNotEmpty) {
+      return CircleAvatar(radius: 20, backgroundImage: NetworkImage(photo));
+    }
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: AppPalette.brand,
+      child: Text(
+        auth.initial,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  /// Shown in the top bar while signed out, in place of the profile avatar.
+  Widget _buildSignInButton() {
+    return SizedBox(
+      height: 40,
+      child: ElevatedButton(
+        onPressed: () => ensureSignedIn(context),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppPalette.brand,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: const Text(
+          'Sign In',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchField(double width) {
     return Container(
       key: _searchFieldKey,
@@ -1381,8 +1553,15 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
     bool isSelected = selectedTab == label;
     return TextButton(
       onPressed: () {
+        if (label == selectedTab) return;
         setState(() => selectedTab = label);
-        _loadData(); // Reload content for new tab
+        _loadData(); // Reload hero, sidebar, and community feeds.
+        _loadHomeRows(); // Rebuild the categorised rows for the new filter.
+        // An open search belongs to the old filter, so run it again so its
+        // results match the filter the user just switched to.
+        if (searchResults != null && searchController.text.trim().isNotEmpty) {
+          _searchMovies(searchController.text);
+        }
       },
       child: Text(
         label,
@@ -1840,8 +2019,6 @@ class _ElijahDashboardState extends State<ElijahDashboard> {
   }
 }
 
-/// One genre row on the home page: a display label, the TMDB genre id and an
-/// icon for its header. [isSeries] rows come from the TV endpoints instead.
 /// A small pill used on the banner slide, for the "Now playing" badge and the
 /// bookmark toggle.
 class _HeroChip extends StatelessWidget {
@@ -1920,13 +2097,15 @@ class _HeroDots extends StatelessWidget {
   }
 }
 
+/// One genre row on the home page: a display label, the TMDB genre id, and an
+/// icon for its header. The id is a movie or TV genre depending on which top
+/// filter defined the row.
 class _GenreRow {
-  const _GenreRow(this.label, this.genreId, this.icon, {this.isSeries = false});
+  const _GenreRow(this.label, this.genreId, this.icon);
 
   final String label;
   final int genreId;
   final IconData icon;
-  final bool isSeries;
 }
 
 /// The Play It logo: a film icon in a rounded gradient tile.

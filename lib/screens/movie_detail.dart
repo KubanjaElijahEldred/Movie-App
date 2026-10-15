@@ -11,8 +11,11 @@ import 'package:movies/screens/widgets.dart';
 import 'package:movies/screens/trailer_player.dart';
 import 'package:movies/models/movie_source.dart';
 import 'package:movies/screens/where_to_watch_sheet.dart';
+import 'package:movies/services/auth_gate.dart';
+import 'package:movies/services/auth_service.dart';
 import 'package:movies/services/download_service.dart';
 import 'package:movies/services/movie_source_service.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MovieDetailPage extends StatefulWidget {
@@ -239,6 +242,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                     physics: BouncingScrollPhysics(),
                                     child: Column(
                                       children: <Widget>[
+                                        _buildYourRating(),
                                         widget.genres.isEmpty
                                             ? Container()
                                             : GenreList(
@@ -489,12 +493,76 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     );
   }
 
+  /// A 1-5 star control for the signed in user's own rating.
+  ///
+  /// Tapping a star as a guest opens the sign in screen first; once signed in
+  /// the rating is saved for that account.
+  Widget _buildYourRating() {
+    final AuthService auth = context.watch<AuthService>();
+    final int current = auth.ratingFor(widget.movie.id) ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
+      child: Row(
+        children: <Widget>[
+          Text(
+            auth.isLoggedIn ? 'Your rating' : 'Sign in to rate',
+            style: const TextStyle(
+              color: AppPalette.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          for (int star = 1; star <= 5; star++)
+            IconButton(
+              onPressed: () => _rateMovie(star),
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              iconSize: 26,
+              tooltip: '$star star${star == 1 ? '' : 's'}',
+              icon: Icon(
+                star <= current ? Icons.star : Icons.star_border,
+                color: star <= current
+                    ? AppPalette.brand
+                    : AppPalette.textMuted,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _rateMovie(int stars) async {
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted) return;
+
+    final AuthService auth = context.read<AuthService>();
+    final bool saved = await auth.rateMovie(widget.movie.id, stars);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          saved
+              ? 'You rated this ${stars}/5. Saved to your account.'
+              : 'Could not save your rating.',
+        ),
+        backgroundColor: saved ? AppPalette.brand : AppPalette.danger,
+      ),
+    );
+  }
+
   /// Starts a real file download for this title.
   ///
   /// A download is only offered when the title resolves to a source whose
   /// licence permits redistribution. Anything else opens the provider list
-  /// instead, so the button never silently becomes a dead link.
+  /// instead, so the button never silently becomes a dead link. Downloads
+  /// require an account, so a guest is asked to sign in first.
   Future<void> _downloadMovie() async {
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted) return;
+
     final MovieSourceService sources = MovieSourceService();
     final DownloadSource? source = await sources.fetchDownloadSource(
       widget.movie.id,

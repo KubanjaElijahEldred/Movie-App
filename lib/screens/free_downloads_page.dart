@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:movies/constants/app_theme.dart';
 import 'package:movies/models/movie_source.dart';
+import 'package:movies/services/auth_gate.dart';
 import 'package:movies/services/download_service.dart';
 import 'package:movies/services/movie_source_service.dart';
 import 'package:movies/screens/downloaded_page.dart';
@@ -50,7 +51,10 @@ class _FreeDownloadsPageState extends State<FreeDownloadsPage> {
         .toList();
   }
 
-  void _startDownload(OpenFilm film) {
+  Future<void> _startDownload(OpenFilm film) async {
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted) return;
+
     widget.downloadService.start(
       movieId: film.tmdbId,
       title: film.title,

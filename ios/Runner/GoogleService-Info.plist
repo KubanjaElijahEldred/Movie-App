@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>478726185470-38ms079plubgv8kv15dbmr4t0hppbuf7.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.478726185470-38ms079plubgv8kv15dbmr4t0hppbuf7</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCe9YzmaaZqS8ngF6voRy2AOLGUC5QMauw</string>
+	<key>GCM_SENDER_ID</key>
+	<string>478726185470</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.bimsina.movies</string>
+	<key>PROJECT_ID</key>
+	<string>play-it-movies</string>
+	<key>STORAGE_BUCKET</key>
+	<string>play-it-movies.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:478726185470:ios:b8e2edcc26b5d7328ee0af</string>
+</dict>
+</plist>

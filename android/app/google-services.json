@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "478726185470",
+    "project_id": "play-it-movies",
+    "storage_bucket": "play-it-movies.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478726185470:android:9cdf3712085b23728ee0af",
+        "android_client_info": {
+          "package_name": "com.bimsina.movies"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478726185470-2bkc7a5ekcd50gsk0rrqdtaokkcdk98j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bimsina.movies",
+            "certificate_hash": "d2fdfa6010690ed1d13b0d027ee0ecc6eb738df6"
+          }
+        },
+        {
+          "client_id": "478726185470-qtvnhjfr23ct955qrde1s01licv2okvg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBH4dDwewl4iMaS_SMQbpaRXJREPwF7STI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478726185470-qtvnhjfr23ct955qrde1s01licv2okvg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "478726185470-38ms079plubgv8kv15dbmr4t0hppbuf7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.bimsina.movies"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

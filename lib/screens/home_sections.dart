@@ -204,6 +204,7 @@ class MovieRowSection extends StatefulWidget {
     this.icon = Icons.movie_filter_outlined,
     this.isLoading = false,
     this.accentLabel,
+    this.onViewMore,
   });
 
   final String title;
@@ -214,6 +215,11 @@ class MovieRowSection extends StatefulWidget {
   final IconData icon;
   final bool isLoading;
   final String? accentLabel;
+
+  /// Opens a fuller, paginated view of this row so the reader can keep
+  /// exploring beyond the handful of posters shown here. When null the control
+  /// is hidden.
+  final VoidCallback? onViewMore;
 
   @override
   State<MovieRowSection> createState() => _MovieRowSectionState();
@@ -330,6 +336,29 @@ class _MovieRowSectionState extends State<MovieRowSection> {
           tooltip: 'Scroll ${widget.title} right',
           onPressed: () => _scrollBy(_cardsPerPage * 148),
         ),
+        if (widget.onViewMore != null) ...<Widget>[
+          const SizedBox(width: 10),
+          TextButton(
+            onPressed: widget.onViewMore,
+            style: TextButton.styleFrom(
+              foregroundColor: AppPalette.brand,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'View more',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(width: 2),
+                Icon(Icons.chevron_right, size: 18),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

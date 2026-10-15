@@ -30,6 +30,16 @@ Future<GenresList> fetchGenres() async {
   return genresList;
 }
 
+/// The TV genre list. TV genre ids differ from the movie ones, so a TV or anime
+/// view has to load these to name the genres on its cards and detail pages.
+Future<GenresList> fetchTVGenres() async {
+  GenresList genresList;
+  var res = await http.get(Uri.parse(Endpoints.getTVGenres()));
+  var decodeRes = jsonDecode(res.body);
+  genresList = GenresList.fromJson(decodeRes);
+  return genresList;
+}
+
 Future<VideoList> fetchVideos(int movieId) async {
   VideoList videoList;
   var res = await http.get(Uri.parse(Endpoints.getMovieVideos(movieId)));

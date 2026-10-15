@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:movies/screens/login.dart';
+import 'package:movies/services/auth_service.dart';
+import 'package:provider/provider.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -13,6 +16,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final AuthService auth = context.watch<AuthService>();
     // Previously a bare Container with no Scaffold, so this screen had no
     // in-app way back once it was pushed from the sidebar.
     return Scaffold(
@@ -61,6 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   SizedBox(height: 30),
                   _buildSection('Account'),
+                  _buildAccountTile(auth),
                   _buildActionTile('Clear Cache', Icons.delete_outline, () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Cache cleared successfully')),
@@ -70,14 +75,88 @@ class _SettingsPageState extends State<SettingsPage> {
                       'Privacy Policy', Icons.privacy_tip_outlined, () {}),
                   _buildActionTile(
                       'Terms of Service', Icons.description_outlined, () {}),
-                  SizedBox(height: 20),
-                  _buildActionTile('Sign Out', Icons.logout, () {},
-                      isDestructive: true),
+                  if (auth.isLoggedIn) ...<Widget>[
+                    const SizedBox(height: 20),
+                    _buildActionTile('Sign Out', Icons.logout, _signOut,
+                        isDestructive: true),
+                  ],
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _signOut() async {
+    await context.read<AuthService>().signOut();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Signed out')),
+    );
+  }
+
+  void _openSignIn() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+    );
+  }
+
+  /// Shows who is signed in, or an invitation to sign in as a guest.
+  Widget _buildAccountTile(AuthService auth) {
+    if (!auth.isLoggedIn) {
+      return _buildActionTile(
+          'Sign in / Create account', Icons.login, _openSignIn);
+    }
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF1A1F26),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.account_circle, color: Colors.amber, size: 34),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  auth.displayName,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  auth.email ?? '',
+                  style: TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              'Signed in',
+              style: TextStyle(
+                color: Colors.amber,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

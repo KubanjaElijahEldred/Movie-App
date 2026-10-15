@@ -2,10 +2,44 @@ const String TMDB_API_KEY = "21c391eeb52e20048513ce13e564118d";
 const String TMDB_API_BASE_URL = "https://api.themoviedb.org/3";
 
 class Endpoints {
+  /// How many years back the discovery feeds look when deciding what counts as
+  /// "current". Browsing is meant to surface recent releases, so endpoints that
+  /// sort by popularity are bounded to this window instead of returning hugely
+  /// popular classics from every past decade.
+  static const int recentWindowYears = 2;
+
+  /// `YYYY-MM-DD` for the oldest release date inside the recent window.
+  static String _recentSince() {
+    final DateTime now = DateTime.now();
+    return _formatDate(
+      DateTime(now.year - recentWindowYears, now.month, now.day),
+    );
+  }
+
+  /// Today as `YYYY-MM-DD`, the newest release date the browse feeds allow so
+  /// unreleased titles are left out.
+  static String _today() => _formatDate(DateTime.now());
+
+  /// Tomorrow as `YYYY-MM-DD`, the oldest release date the "coming soon" feed
+  /// allows. Starting here rather than today keeps titles opening today out of
+  /// the results, matching the screen's own idea that today's films have opened.
+  static String _tomorrow() {
+    final DateTime now = DateTime.now();
+    return _formatDate(DateTime(now.year, now.month, now.day + 1));
+  }
+
+  static String _formatDate(DateTime date) {
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
   static String discoverMoviesUrl(int page) {
     return '$TMDB_API_BASE_URL/discover/movie?api_key=$TMDB_API_KEY'
         '&language=en-US&sort_by=popularity.desc'
-        '&include_adult=false&include_video=false&page=$page';
+        '&include_adult=false&include_video=false&page=$page'
+        '&primary_release_date.gte=${_recentSince()}'
+        '&primary_release_date.lte=${_today()}';
   }
 
   static String nowPlayingMoviesUrl(int page) {
@@ -27,9 +61,59 @@ class Endpoints {
         '&include_adult=false&page=$page';
   }
 
-  static String upcomingMoviesUrl(int page) {
-    return '$TMDB_API_BASE_URL/movie/upcoming?api_key=$TMDB_API_KEY'
-        '&include_adult=false&page=$page';
+  /// Movies that have not opened yet, ordered by how soon they arrive.
+  ///
+  /// Built from `discover` rather than the curated `movie/upcoming` list, which
+  /// is a fixed regional window that can still contain titles already playing.
+  /// The window starts tomorrow and runs to a [horizonMonths]-month horizon, and
+  /// the sort is by release date, so the feed is genuinely "not out yet" and is
+  /// recalculated from the calendar every time it is called.
+  static String upcomingMoviesUrl(int page, {int horizonMonths = 9}) {
+    final DateTime now = DateTime.now();
+    final DateTime until = DateTime(now.year, now.month + horizonMonths, now.day);
+    return '$TMDB_API_BASE_URL/discover/movie?api_key=$TMDB_API_KEY'
+        '&language=en-US'
+        '&sort_by=primary_release_date.asc'
+        '&include_adult=false'
+        '&include_video=false'
+        '&page=$page'
+        '&primary_release_date.gte=${_tomorrow()}'
+        '&primary_release_date.lte=${_formatDate(until)}';
+  }
+
+  /// The last day of the current month as `YYYY-MM-DD`.
+  static String _monthEnd() {
+    final DateTime now = DateTime.now();
+    // Day 0 of next month rolls back to the final day of the current one.
+    return _formatDate(DateTime(now.year, now.month + 1, 0));
+  }
+
+  /// Movies opening between tomorrow and the end of the current month, soonest
+  /// first. The lower bound excludes anything that has already opened, and the
+  /// whole window is recalculated from the calendar on every call, so a title
+  /// drops off the list as soon as its release date arrives.
+  static String upcomingMoviesThisMonthUrl(int page) {
+    return '$TMDB_API_BASE_URL/discover/movie?api_key=$TMDB_API_KEY'
+        '&language=en-US'
+        '&sort_by=primary_release_date.asc'
+        '&include_adult=false'
+        '&include_video=false'
+        '&page=$page'
+        '&primary_release_date.gte=${_tomorrow()}'
+        '&primary_release_date.lte=${_monthEnd()}';
+  }
+
+  /// TV titles (series, shows and anime) premiering between tomorrow and the end
+  /// of the current month, soonest first. Anime is not split out here: it shares
+  /// the TV catalogue and is told apart from other series by language and genre.
+  static String upcomingTVThisMonthUrl(int page) {
+    return '$TMDB_API_BASE_URL/discover/tv?api_key=$TMDB_API_KEY'
+        '&language=en-US'
+        '&sort_by=first_air_date.asc'
+        '&include_adult=false'
+        '&page=$page'
+        '&first_air_date.gte=${_tomorrow()}'
+        '&first_air_date.lte=${_monthEnd()}';
   }
 
   static String movieDetailsUrl(int movieId) {
@@ -47,7 +131,9 @@ class Endpoints {
         '&include_adult=false'
         '&include_video=false'
         '&page=$page'
-        '&with_genres=$genreId';
+        '&with_genres=$genreId'
+        '&primary_release_date.gte=${_recentSince()}'
+        '&primary_release_date.lte=${_today()}';
   }
 
   static String movieReviewsUrl(int movieId, int page) {
@@ -98,7 +184,9 @@ class Endpoints {
   static String discoverTVUrl(int page) {
     return '$TMDB_API_BASE_URL/discover/tv?api_key=$TMDB_API_KEY'
         '&language=en-US&sort_by=popularity.desc'
-        '&include_adult=false&page=$page';
+        '&include_adult=false&page=$page'
+        '&first_air_date.gte=${_recentSince()}'
+        '&first_air_date.lte=${_today()}';
   }
 
   static String topRatedTVUrl(int page) {
@@ -137,6 +225,32 @@ class Endpoints {
         '&language=en-US'
         '&sort_by=popularity.desc'
         '&page=$page'
-        '&with_genres=$genreId';
+        '&with_genres=$genreId'
+        '&first_air_date.gte=${_recentSince()}'
+        '&first_air_date.lte=${_today()}';
+  }
+
+  /// Anime, isolated the conventional way: TMDB has no dedicated anime list, so
+  /// this pairs the Animation genre (16) with a Japanese original language.
+  static String discoverAnimeUrl(int page) {
+    return '$TMDB_API_BASE_URL/discover/tv?api_key=$TMDB_API_KEY'
+        '&language=en-US&sort_by=popularity.desc'
+        '&include_adult=false&page=$page'
+        '&with_genres=16'
+        '&with_original_language=ja'
+        '&first_air_date.gte=${_recentSince()}'
+        '&first_air_date.lte=${_today()}';
+  }
+
+  /// Anime within one TV genre, filtered to Japanese animation.
+  static String getAnimeForGenre(int genreId, int page) {
+    return '$TMDB_API_BASE_URL/discover/tv?api_key=$TMDB_API_KEY'
+        '&language=en-US'
+        '&sort_by=popularity.desc'
+        '&page=$page'
+        '&with_genres=$genreId'
+        '&with_original_language=ja'
+        '&first_air_date.gte=${_recentSince()}'
+        '&first_air_date.lte=${_today()}';
   }
 }
